@@ -23,12 +23,10 @@ export interface AutosendConfig {
 
 const KV_KEY = "autosend_config";
 
-// ─── Helper : charge le KV dynamiquement (évite l'erreur build si pas configuré) ──
+// ─── Helper Redis ─────────────────────────────────────────────────────────────
 async function getKv() {
-  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
-    return null;
-  }
-  const { kv } = await import("@vercel/kv");
+  const { kv, isRedisConfigured } = await import("@/lib/redis");
+  if (!isRedisConfigured()) return null;
   return kv;
 }
 
@@ -37,7 +35,7 @@ export async function GET() {
   const kv = await getKv();
   if (!kv) {
     return Response.json(
-      { error: "KV non configuré", hint: "Ajoutez une base Vercel KV dans votre projet (voir setup)" },
+      { error: "Redis non configuré", hint: "Ajoutez REDIS_URL dans vos variables d'environnement Vercel" },
       { status: 503 },
     );
   }
@@ -63,7 +61,7 @@ export async function POST(req: NextRequest) {
   const kv = await getKv();
   if (!kv) {
     return Response.json(
-      { error: "KV non configuré", hint: "Ajoutez une base Vercel KV dans votre projet (voir setup)" },
+      { error: "Redis non configuré", hint: "Ajoutez REDIS_URL dans vos variables d'environnement Vercel" },
       { status: 503 },
     );
   }
@@ -93,7 +91,7 @@ export async function POST(req: NextRequest) {
 // ─── DELETE : désactiver / supprimer la config ────────────────────────────────
 export async function DELETE() {
   const kv = await getKv();
-  if (!kv) return Response.json({ error: "KV non configuré" }, { status: 503 });
+  if (!kv) return Response.json({ error: "Redis non configuré" }, { status: 503 });
   await kv.del(KV_KEY);
   return Response.json({ ok: true });
 }
