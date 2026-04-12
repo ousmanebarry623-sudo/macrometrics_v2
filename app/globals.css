@@ -60,6 +60,11 @@ html, body {
 }
 .blink { animation: blink 1.5s infinite; }
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px #22c55e; }
+  50%       { opacity: 0.5; box-shadow: 0 0 2px #22c55e; }
+}
+
 @keyframes ticker-scroll {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }

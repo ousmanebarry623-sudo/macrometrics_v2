@@ -22,6 +22,7 @@ const RETEST_TOL    = 0.0015;          // 0.15% tolérance retest
 interface ActiveMonitor {
   id:            string;
   pair:          string;
+  tv:            string;   // ex: "FX:EURUSD" — pour TradingView prix live
   yf:            string;
   tf:            string;
   yfInterval:    string;
@@ -32,12 +33,28 @@ interface ActiveMonitor {
   startedAt:     number;
   lastSentAt:    number;
   reminderCount: number;
-  serverSynced?: boolean; // true si enregistré côté serveur
+  serverSynced?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function fetchCurrentPrice(yfSymbol: string): Promise<number | null> {
+// Prix en temps réel via TradingView Scanner (tvSymbol = "FX:EURUSD")
+async function fetchCurrentPriceTV(tvSymbol: string): Promise<number | null> {
+  try {
+    const res = await fetch(
+      `/api/tv-price?symbol=${encodeURIComponent(tvSymbol)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const json = await res.json() as { price?: number };
+    return json.price ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Fallback Yahoo Finance si TradingView indisponible
+async function fetchCurrentPriceYF(yfSymbol: string): Promise<number | null> {
   try {
     const res = await fetch(
       `/api/chart-data?symbol=${encodeURIComponent(yfSymbol)}&interval=1m&range=1d`,
@@ -50,6 +67,13 @@ async function fetchCurrentPrice(yfSymbol: string): Promise<number | null> {
   } catch {
     return null;
   }
+}
+
+// Essaie TradingView d'abord, puis Yahoo Finance en fallback
+async function fetchCurrentPrice(tvSymbol: string, yfSymbol: string): Promise<number | null> {
+  const tv = await fetchCurrentPriceTV(tvSymbol);
+  if (tv !== null) return tv;
+  return fetchCurrentPriceYF(yfSymbol);
 }
 
 function hasRetested(type: "buy" | "sell", entry: number, current: number): boolean {
@@ -169,6 +193,7 @@ function buildRetest(m: ActiveMonitor, currentPriceStr: string): string {
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface Props {
   currentSignal:  TelegramSignalData | null;
+  currentTv:      string;   // ex: "FX:EURUSD"
   currentYf:      string;
   currentLabel:   string;
   currentTfLabel: string;
@@ -176,7 +201,7 @@ interface Props {
 
 // ── Composant ─────────────────────────────────────────────────────────────────
 export default function SignalMonitorPanel({
-  currentSignal, currentYf, currentLabel, currentTfLabel,
+  currentSignal, currentTv, currentYf, currentLabel, currentTfLabel,
 }: Props) {
   const [ready,          setReady]          = useState(false);
   const [enabled,        setEnabled]        = useState(false);
@@ -271,7 +296,7 @@ export default function SignalMonitorPanel({
     const id     = `${currentLabel}_${currentTfLabel}_${currentSignal.sigTime}`;
 
     const newMonitor: ActiveMonitor = {
-      id, pair: currentLabel, yf: currentYf, tf: currentTfLabel,
+      id, pair: currentLabel, tv: currentTv, yf: currentYf, tf: currentTfLabel,
       yfInterval: tfInfo?.yfInterval ?? "15m",
       type: currentSignal.type, entryPrice,
       score: currentSignal.score, sigData: currentSignal,
@@ -310,7 +335,7 @@ export default function SignalMonitorPanel({
     for (const m of monitors) {
       if (now - m.lastSentAt < REMINDER_MS) continue;
 
-      const current = await fetchCurrentPrice(m.yf);
+      const current = await fetchCurrentPrice(m.tv ?? m.yf, m.yf);
       if (current === null) continue;
 
       if (hasRetested(m.type, m.entryPrice, current)) {

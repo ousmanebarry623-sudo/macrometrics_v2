@@ -7,6 +7,7 @@ import type { Signal, ElteParams } from "@/lib/elte-compute";
 import type { DashMetrics } from "@/components/ElteSmartDashboard";
 import type { TelegramSignalData, ServerWatchSymbol } from "@/components/TelegramPanel";
 import SignalMonitorPanel from "@/components/SignalMonitorPanel";
+import LivePriceTicker from "@/components/LivePriceTicker";
 
 // ─── LAZY LOADS ───────────────────────────────────────────────────────────────
 const SignalChart = dynamic(() => import("@/components/SignalChart"), {
@@ -216,9 +217,18 @@ export default function SignalPage() {
             />
 
           </div>
-          <p style={{ fontSize:11, color:"#475569", marginTop:3 }}>
-            🇫🇷 {parisDate} · Signaux affichés directement sur le graphique · Dashboard multi-TF
-          </p>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4, flexWrap:"wrap" }}>
+            <p style={{ fontSize:11, color:"#475569", margin:0 }}>
+              🇫🇷 {parisDate} · Signaux affichés directement sur le graphique · Dashboard multi-TF
+            </p>
+            {/* Prix live TradingView */}
+            <LivePriceTicker
+              tvSymbol={sym.tv}
+              label={sym.label}
+              entryPrice={tgSignal ? parseFloat(tgSignal.entry) : null}
+              signalType={tgSignal?.type ?? null}
+            />
+          </div>
         </div>
         <span style={{ fontSize:11, color:"#22c55e", background:"rgba(34,197,94,.08)", padding:"3px 10px", borderRadius:999, border:"1px solid rgba(34,197,94,.2)", fontWeight:700 }}>
           ● LIVE
@@ -284,6 +294,7 @@ export default function SignalPage() {
       {/* ── Surveillance Signal Telegram ──────────────────────────────── */}
       <SignalMonitorPanel
         currentSignal={tgSignal}
+        currentTv={sym.tv}
         currentYf={sym.yf}
         currentLabel={sym.label}
         currentTfLabel={tf.label}
