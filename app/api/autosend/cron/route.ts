@@ -1,11 +1,12 @@
 // app/api/autosend/cron/route.ts
 // Exécuté automatiquement par Vercel Cron toutes les 5 minutes.
-// Lit la config dans KV, fetch Yahoo Finance, détecte les nouveaux signaux
-// et envoie sur Telegram si un nouveau signal apparaît.
+// 1. Lit la config autosend dans KV, détecte les nouveaux signaux, envoie sur Telegram.
+// 2. Traite les moniteurs de signaux persistants (rappels 15 min + détection retest).
 export const dynamic = "force-dynamic";
 import { type NextRequest } from "next/server";
 import { computeDash, aggregateCandles, type Candle } from "@/lib/dash-compute";
 import type { AutosendConfig, WatchedSymbol } from "@/app/api/autosend/config/route";
+import type { ServerMonitor } from "@/app/api/monitor/route";
 
 // ─── KV helper ───────────────────────────────────────────────────────────────
 async function getKv() {
@@ -192,6 +193,110 @@ async function processSymbol(
   return { sent: ok, score, reason: ok ? "envoyé" : "erreur Telegram" };
 }
 
+// ─── Récupérer le dernier prix Yahoo Finance ──────────────────────────────────
+async function fetchLatestPrice(symbol: string): Promise<number | null> {
+  const candles = await fetchCandles(symbol, "1m", "1d");
+  if (candles.length === 0) return null;
+  return candles[candles.length - 1].close;
+}
+
+// ─── Détection de retest ──────────────────────────────────────────────────────
+const RETEST_TOL = 0.0015; // ±0.15%
+function hasRetested(type: "buy" | "sell", entry: number, current: number): boolean {
+  if (type === "buy")  return current <= entry * (1 + RETEST_TOL);
+  return current >= entry * (1 - RETEST_TOL);
+}
+
+// ─── Messages pour les moniteurs ──────────────────────────────────────────────
+function buildReminderMsg(m: ServerMonitor, n: number): string {
+  const dir     = m.type === "buy" ? "BUY" : "SELL";
+  const elapsed = Math.round((Date.now() - m.addedAt) / 60000);
+  return [
+    `🔔 RAPPEL #${n} — SIGNAL ${dir} · ${esc(m.score)}`,
+    `💱 ${esc(m.label)} · ${esc(m.tfLabel)}`,
+    `──────────────────`,
+    `📍 Entry  : <code>${esc(m.fEntry)}</code>  (pas encore retesté)`,
+    `🎯 TP 1   : <code>${esc(m.fTp1)}</code>`,
+    `🎯 TP 2   : <code>${esc(m.fTp2)}</code>`,
+    `🎯 TP 3   : <code>${esc(m.fTp3)}</code>`,
+    `🛑 Stop   : <code>${esc(m.fSl)}</code>`,
+    `──────────────────`,
+    `⏱ Signal actif depuis ${elapsed} min`,
+    ``,
+    `🔒 <i>ELTE SMART · macrometrics</i>`,
+  ].join("\n");
+}
+
+function buildRetestMsg(m: ServerMonitor, currentPriceStr: string): string {
+  const dir     = m.type === "buy" ? "BUY" : "SELL";
+  const elapsed = Math.round((Date.now() - m.addedAt) / 60000);
+  const n       = m.reminderCount;
+  return [
+    `✅ RETEST ENTRÉE — ${dir} · ${esc(m.score)}`,
+    `💱 ${esc(m.label)} · ${esc(m.tfLabel)}`,
+    ``,
+    `📍 Entry         : <code>${esc(m.fEntry)}</code>`,
+    `📊 Prix actuel   : <code>${esc(currentPriceStr)}</code>  ← retest détecté`,
+    ``,
+    `⏱ Signal actif pendant ${elapsed} min · ${n} rappel${n !== 1 ? "s" : ""} envoyé${n !== 1 ? "s" : ""}`,
+    `⏹ Surveillance terminée automatiquement.`,
+    ``,
+    `🔒 <i>ELTE SMART · macrometrics</i>`,
+  ].join("\n");
+}
+
+// ─── Traiter tous les moniteurs persistants ───────────────────────────────────
+async function processMonitors(
+  kv: Awaited<ReturnType<typeof getKv>>,
+): Promise<{ checked: number; reminders: number; retests: number }> {
+  if (!kv) return { checked: 0, reminders: 0, retests: 0 };
+
+  const monitors = await kv.get<ServerMonitor[]>("signal_monitors") ?? [];
+  if (monitors.length === 0) return { checked: 0, reminders: 0, retests: 0 };
+
+  const REMINDER_MS = 15 * 60 * 1000;
+  const now         = Date.now();
+  let reminders = 0, retests = 0;
+
+  const toRemove: string[] = [];
+  const remaining: ServerMonitor[] = [];
+
+  for (const m of monitors) {
+    // Pas encore 15 min depuis le dernier envoi
+    if (now - m.lastReminderAt < REMINDER_MS) {
+      remaining.push(m);
+      continue;
+    }
+
+    const current = await fetchLatestPrice(m.yf);
+    if (current === null) {
+      // Impossible de récupérer le prix → conserver, réessayer plus tard
+      remaining.push(m);
+      continue;
+    }
+
+    const priceStr = m.yf.includes("JPY") ? current.toFixed(3) : current.toFixed(5);
+
+    if (hasRetested(m.type, m.entryPrice, current)) {
+      await sendTelegram(m.token, m.chatId, buildRetestMsg(m, priceStr));
+      toRemove.push(m.id);
+      retests++;
+    } else {
+      const n = m.reminderCount + 1;
+      await sendTelegram(m.token, m.chatId, buildReminderMsg(m, n));
+      remaining.push({ ...m, lastReminderAt: now, reminderCount: n });
+      reminders++;
+    }
+  }
+
+  // Sauvegarder la liste mise à jour (sans les moniteurs terminés par retest)
+  const updated = remaining.filter(m => !toRemove.includes(m.id));
+  await kv.set("signal_monitors", updated);
+
+  console.log(`[Cron/Monitors] checked=${monitors.length} reminders=${reminders} retests=${retests}`);
+  return { checked: monitors.length, reminders, retests };
+}
+
 // ─── HANDLER CRON ─────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   // Sécurité : Vercel envoie un header CRON_SECRET automatiquement
@@ -214,7 +319,7 @@ export async function GET(req: NextRequest) {
   if (!cfg.token || !cfg.chatId) return Response.json({ skipped: true, reason: "token/chatId manquant" });
   if (!cfg.symbols || cfg.symbols.length === 0) return Response.json({ skipped: true, reason: "aucun symbole configuré" });
 
-  // Traiter chaque symbole
+  // Traiter chaque symbole autosend
   const results: Record<string, { sent: boolean; score: string | null; reason: string }> = {};
   for (const sym of cfg.symbols) {
     try {
@@ -224,6 +329,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Traiter les moniteurs persistants (rappels + retest)
+  let monitorStats = { checked: 0, reminders: 0, retests: 0 };
+  try {
+    monitorStats = await processMonitors(kv);
+  } catch (err) {
+    console.error("[Cron/Monitors] Erreur:", err);
+  }
+
   console.log("[Cron] Résultats:", JSON.stringify(results));
-  return Response.json({ ok: true, results, ts: Date.now() });
+  return Response.json({ ok: true, results, monitors: monitorStats, ts: Date.now() });
 }

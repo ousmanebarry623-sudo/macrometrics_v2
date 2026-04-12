@@ -1,6 +1,8 @@
 // components/SignalMonitorPanel.tsx
-// Surveillance continue d'un signal Telegram avec rappels toutes les 15 min
-// Arrêt automatique quand le marché reteste le prix d'entrée
+// Surveillance continue d'un signal Telegram avec rappels toutes les 15 min.
+// Côté serveur : les moniteurs sont persistés dans Vercel KV et traités par
+// le cron toutes les 5 min → surveillance active même navigateur fermé.
+// Côté client  : fallback localStorage + interval de vérification locale.
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { TelegramSignalData } from "./TelegramPanel";
@@ -14,7 +16,7 @@ const LS_MONITOR_TFS     = "elte_monitor_tfs";
 const LS_ACTIVE_MONITORS = "elte_active_monitors";
 
 const REMINDER_MS   = 15 * 60 * 1000; // 15 minutes
-const CHECK_TICK_MS =  1 * 60 * 1000; // check toutes les 1 min
+const CHECK_TICK_MS =  1 * 60 * 1000; // vérification client toutes les 1 min
 const RETEST_TOL    = 0.0015;          // 0.15% tolérance retest
 
 interface ActiveMonitor {
@@ -30,6 +32,7 @@ interface ActiveMonitor {
   startedAt:     number;
   lastSentAt:    number;
   reminderCount: number;
+  serverSynced?: boolean; // true si enregistré côté serveur
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -50,8 +53,6 @@ async function fetchCurrentPrice(yfSymbol: string): Promise<number | null> {
 }
 
 function hasRetested(type: "buy" | "sell", entry: number, current: number): boolean {
-  // BUY: retest = price revient au niveau d'entrée (en dessous ou proche)
-  // SELL: retest = price remonte au niveau d'entrée (au-dessus ou proche)
   if (type === "buy")  return current <= entry * (1 + RETEST_TOL);
   return current >= entry * (1 - RETEST_TOL);
 }
@@ -76,6 +77,58 @@ async function sendTg(token: string, chatId: string, text: string): Promise<void
     });
   } catch { /* silently ignore */ }
 }
+
+// ── Enregistrement serveur ─────────────────────────────────────────────────────
+
+async function registerMonitorServer(
+  m: ActiveMonitor,
+  token: string,
+  chatId: string,
+): Promise<boolean> {
+  try {
+    const sigTime = m.sigData.sigTime ?? 0;
+    const id      = `${m.yf}:${m.tf}:${sigTime}`;
+    const body = {
+      id,
+      yf:         m.yf,
+      label:      m.pair,
+      tfLabel:    m.tf,
+      type:       m.type,
+      entryPrice: m.entryPrice,
+      score:      m.score,
+      fEntry:     m.sigData.entry,
+      fTp1:       m.sigData.tp1,
+      fTp2:       m.sigData.tp2,
+      fTp3:       m.sigData.tp3,
+      fSl:        m.sigData.sl,
+      sigTime,
+      token,
+      chatId,
+    };
+    const res = await fetch("/api/monitor", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(body),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function deleteMonitorServer(id: string): Promise<void> {
+  try {
+    await fetch(`/api/monitor?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+  } catch { /* ignore */ }
+}
+
+async function clearAllMonitorsServer(): Promise<void> {
+  try {
+    await fetch("/api/monitor", { method: "DELETE" });
+  } catch { /* ignore */ }
+}
+
+// ── Message builders ──────────────────────────────────────────────────────────
 
 function buildReminder(m: ActiveMonitor, n: number): string {
   const dir     = m.type === "buy" ? "BUY" : "SELL";
@@ -116,9 +169,9 @@ function buildRetest(m: ActiveMonitor, currentPriceStr: string): string {
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface Props {
   currentSignal:  TelegramSignalData | null;
-  currentYf:      string;   // ex: "EURUSD=X"
-  currentLabel:   string;   // ex: "EUR/USD"
-  currentTfLabel: string;   // ex: "15M"
+  currentYf:      string;
+  currentLabel:   string;
+  currentTfLabel: string;
 }
 
 // ── Composant ─────────────────────────────────────────────────────────────────
@@ -131,9 +184,9 @@ export default function SignalMonitorPanel({
   const [monitoredTFs,   setMonitoredTFs]   = useState<string[]>([]);
   const [activeMonitors, setActiveMonitors] = useState<ActiveMonitor[]>([]);
   const [showConfig,     setShowConfig]     = useState(false);
-  const [, tick]                            = useState(0); // force re-render
+  const [serverOk,       setServerOk]       = useState<boolean | null>(null); // null = inconnu
+  const [, tick]                            = useState(0);
 
-  // Refs pour éviter les closures obsolètes dans les intervalles
   const tokenRef          = useRef("");
   const chatIdRef         = useRef("");
   const activeMonitorsRef = useRef<ActiveMonitor[]>([]);
@@ -142,7 +195,7 @@ export default function SignalMonitorPanel({
   // Sync ref ← state
   useEffect(() => { activeMonitorsRef.current = activeMonitors; }, [activeMonitors]);
 
-  // ── Init depuis localStorage ─────────────────────────────────────────────
+  // ── Init depuis localStorage + sync serveur ──────────────────────────────
   useEffect(() => {
     try {
       tokenRef.current  = localStorage.getItem(LS_TOKEN)   ?? "";
@@ -154,6 +207,12 @@ export default function SignalMonitorPanel({
       if (tfs)   setMonitoredTFs(JSON.parse(tfs));
       if (ams)   setActiveMonitors(JSON.parse(ams));
     } catch { /* SSR / parse error */ }
+
+    // Vérifier si KV serveur est disponible
+    fetch("/api/monitor")
+      .then(r => setServerOk(r.ok && r.status !== 503))
+      .catch(() => setServerOk(false));
+
     setReady(true);
   }, []);
 
@@ -172,6 +231,29 @@ export default function SignalMonitorPanel({
     if (!ready) return;
     try { localStorage.setItem(LS_ACTIVE_MONITORS, JSON.stringify(activeMonitors)); } catch { /* ignore */ }
   }, [activeMonitors, ready]);
+
+  // ── Toggle activation ────────────────────────────────────────────────────
+  const handleToggle = useCallback(() => {
+    setEnabled(prev => {
+      const next = !prev;
+      if (!next) {
+        // Désactivation : effacer tous les moniteurs côté serveur
+        clearAllMonitorsServer();
+      }
+      return next;
+    });
+  }, []);
+
+  // ── Retirer un moniteur (bouton ×) ───────────────────────────────────────
+  const removeMonitor = useCallback((id: string) => {
+    // Supprimer côté serveur (le serverId est yf:tf:sigTime, on retrouve depuis l'id client)
+    const m = activeMonitorsRef.current.find(x => x.id === id);
+    if (m) {
+      const serverId = `${m.yf}:${m.tf}:${m.sigData.sigTime ?? 0}`;
+      deleteMonitorServer(serverId);
+    }
+    setActiveMonitors(prev => prev.filter(x => x.id !== id));
+  }, []);
 
   // ── Détection nouveau signal → ajout au moniteur ─────────────────────────
   useEffect(() => {
@@ -194,7 +276,16 @@ export default function SignalMonitorPanel({
       type: currentSignal.type, entryPrice,
       score: currentSignal.score, sigData: currentSignal,
       startedAt: Date.now(), lastSentAt: Date.now(), reminderCount: 0,
+      serverSynced: false,
     };
+
+    // Enregistrer côté serveur (persistance)
+    registerMonitorServer(newMonitor, tokenRef.current, chatIdRef.current)
+      .then(ok => {
+        setActiveMonitors(prev =>
+          prev.map(m => m.id === id ? { ...m, serverSynced: ok } : m)
+        );
+      });
 
     setActiveMonitors(prev => [
       ...prev.filter(m => !(m.pair === currentLabel && m.tf === currentTfLabel)),
@@ -203,7 +294,7 @@ export default function SignalMonitorPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSignal?.sigTime, enabled, ready]);
 
-  // ── Vérification toutes les minutes → rappel / arrêt retest ─────────────
+  // ── Vérification client toutes les minutes (fallback si serveur indispo) ──
   const checkMonitors = useCallback(async () => {
     const token  = tokenRef.current;
     const chatId = chatIdRef.current;
@@ -223,9 +314,16 @@ export default function SignalMonitorPanel({
       if (current === null) continue;
 
       if (hasRetested(m.type, m.entryPrice, current)) {
-        await sendTg(token, chatId, buildRetest(m, fmtPrice(current, m.yf)));
+        // Si serveur sync, le serveur gère l'envoi — éviter doublons
+        if (!m.serverSynced) {
+          await sendTg(token, chatId, buildRetest(m, fmtPrice(current, m.yf)));
+        }
         toRemove.push(m.id);
-      } else {
+        // Supprimer côté serveur aussi
+        const serverId = `${m.yf}:${m.tf}:${m.sigData.sigTime ?? 0}`;
+        deleteMonitorServer(serverId);
+      } else if (!m.serverSynced) {
+        // Uniquement si le serveur ne gère pas ce moniteur
         const n = m.reminderCount + 1;
         await sendTg(token, chatId, buildReminder(m, n));
         updates[m.id] = { lastSentAt: now, reminderCount: n };
@@ -241,14 +339,14 @@ export default function SignalMonitorPanel({
     }
   }, []);
 
-  // ── Interval check ───────────────────────────────────────────────────────
+  // ── Interval client ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!enabled) return;
     const id = setInterval(checkMonitors, CHECK_TICK_MS);
     return () => clearInterval(id);
   }, [enabled, checkMonitors]);
 
-  // ── Ticker pour affichage (elapsed, next send) ───────────────────────────
+  // ── Ticker affichage ─────────────────────────────────────────────────────
   useEffect(() => {
     const id = setInterval(() => tick(n => n + 1), 30 * 1000);
     return () => clearInterval(id);
@@ -271,7 +369,7 @@ export default function SignalMonitorPanel({
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
 
         {/* Toggle */}
-        <button onClick={() => setEnabled(e => !e)} style={{
+        <button onClick={handleToggle} style={{
           display: "flex", alignItems: "center", gap: 7,
           background: "none", border: "none", cursor: "pointer", padding: 0,
         }}>
@@ -295,7 +393,20 @@ export default function SignalMonitorPanel({
 
         <span style={{ fontSize: 9, color: "#334155" }}>⏱ rappel / 15 min</span>
 
-        {/* Badges */}
+        {/* Badge serveur */}
+        {enabled && serverOk !== null && (
+          <span style={{
+            fontSize: 9, fontWeight: 700,
+            color:      serverOk ? "#22c55e" : "#f59e0b",
+            background: serverOk ? "rgba(34,197,94,0.08)" : "rgba(245,158,11,0.08)",
+            border:    `1px solid ${serverOk ? "rgba(34,197,94,0.2)" : "rgba(245,158,11,0.2)"}`,
+            borderRadius: 5, padding: "1px 6px",
+          }}>
+            {serverOk ? "☁ Serveur" : "💻 Local"}
+          </span>
+        )}
+
+        {/* Badges actifs */}
         {enabled && activeMonitors.length > 0 && (
           <span style={{
             fontSize: 10, fontWeight: 700, color: "#f0c84a",
@@ -368,8 +479,6 @@ export default function SignalMonitorPanel({
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
-
-                {/* Bouton ajouter paire courante */}
                 {!pairIsMonitored && (
                   <button onClick={() => setMonitoredPairs(prev => [...prev, currentLabel])} style={{
                     fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 5, cursor: "pointer",
@@ -401,8 +510,6 @@ export default function SignalMonitorPanel({
                     </button>
                   );
                 })}
-
-                {/* Bouton ajouter TF courant */}
                 {!tfIsMonitored && (
                   <button onClick={() => setMonitoredTFs(prev => [...prev, currentTfLabel])} style={{
                     fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 5, cursor: "pointer",
@@ -414,15 +521,18 @@ export default function SignalMonitorPanel({
                 )}
               </div>
 
-              {/* Condition info */}
+              {/* Info mode */}
               <div style={{
                 marginTop: 12, fontSize: 10, color: "#334155",
                 background: "#080814", border: "1px solid #1c1c38",
                 borderRadius: 6, padding: "8px 10px", lineHeight: 1.7,
               }}>
                 <span style={{ color: "#475569", fontWeight: 700 }}>Condition d&apos;arrêt :</span> retest du prix d&apos;entrée (±0.15%)<br />
-                <span style={{ color: "#475569", fontWeight: 700 }}>Fréquence :</span> rappel toutes les 15 min · vérification toutes les 1 min<br />
-                <span style={{ color: "#475569", fontWeight: 700 }}>Note :</span> fonctionne uniquement si cette page reste ouverte
+                <span style={{ color: "#475569", fontWeight: 700 }}>Fréquence :</span> rappel toutes les 15 min · vérification toutes les 5 min (cron)<br />
+                {serverOk
+                  ? <><span style={{ color: "#22c55e", fontWeight: 700 }}>☁ Mode Serveur :</span> surveillance active même si vous fermez le site</>
+                  : <><span style={{ color: "#f59e0b", fontWeight: 700 }}>💻 Mode Local :</span> surveillance active uniquement si cette page reste ouverte (KV non configuré)</>
+                }
               </div>
             </div>
           )}
@@ -431,18 +541,17 @@ export default function SignalMonitorPanel({
           {activeMonitors.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {activeMonitors.map(m => {
-                const isBuy     = m.type === "buy";
-                const elapsed   = Date.now() - m.startedAt;
+                const isBuy         = m.type === "buy";
+                const elapsed       = Date.now() - m.startedAt;
                 const sinceLastSend = Date.now() - m.lastSentAt;
-                const nextSendMs = Math.max(0, REMINDER_MS - sinceLastSend);
-                const nextMin    = Math.ceil(nextSendMs / 60000);
+                const nextSendMs    = Math.max(0, REMINDER_MS - sinceLastSend);
+                const nextMin       = Math.ceil(nextSendMs / 60000);
                 return (
                   <div key={m.id} style={{
                     background: "#080814",
                     border: `1px solid ${isBuy ? "rgba(34,197,94,0.22)" : "rgba(239,68,68,0.22)"}`,
                     borderRadius: 8, padding: "10px 12px",
                   }}>
-                    {/* Ligne titre */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{
@@ -457,21 +566,23 @@ export default function SignalMonitorPanel({
                           fontSize: 9, color: "#475569", background: "#0d0d1a",
                           padding: "1px 5px", borderRadius: 4, border: "1px solid #1c1c38",
                         }}>{m.tf}</span>
+                        {m.serverSynced && (
+                          <span style={{ fontSize: 9, color: "#22c55e" }} title="Persisté sur le serveur">☁</span>
+                        )}
                       </div>
-                      <button onClick={() => setActiveMonitors(prev => prev.filter(x => x.id !== m.id))}
+                      <button onClick={() => removeMonitor(m.id)}
                         style={{ background: "none", border: "none", color: "#334155", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>
                         ×
                       </button>
                     </div>
-
-                    {/* Stats */}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: 3, columnGap: 12, fontSize: 10, color: "#64748b" }}>
                       <span>Entry : <strong style={{ color: "#94a3b8", fontFamily: "monospace" }}>{m.sigData.entry}</strong></span>
                       <span>Depuis : <strong style={{ color: "#94a3b8" }}>{formatElapsed(elapsed)}</strong></span>
                       <span>Rappels : <strong style={{ color: "#818cf8" }}>{m.reminderCount}</strong></span>
-                      <span>Prochain : <strong style={{ color: nextMin <= 2 ? "#f0c84a" : "#64748b" }}>{nextMin} min</strong></span>
+                      <span>Prochain : <strong style={{ color: nextMin <= 2 ? "#f0c84a" : "#64748b" }}>
+                        {m.serverSynced ? "~cron 5m" : `${nextMin} min`}
+                      </strong></span>
                     </div>
-
                     <div style={{ marginTop: 6, fontSize: 9, color: "#1e293b" }}>
                       ⟳ Arrêt auto au retest · TP1 {m.sigData.tp1} · Stop {m.sigData.sl}
                     </div>
