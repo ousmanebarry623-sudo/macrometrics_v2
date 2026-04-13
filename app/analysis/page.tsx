@@ -46,25 +46,22 @@ function timeAgo(pubDate: string): string {
 }
 
 // ── Seasonality — 100% depuis Google Sheets via /api/seasonality-range ────────
-// Aucune donnée hardcodée. Les presets calculent les plages d'années réelles.
-type SeasonPeriod = "5y" | "10y" | "20y" | "all";
+// Plage Google Sheet : 2015 → 2025 uniquement
+type SeasonPeriod = "5y" | "10y" | "tout";
 
-const CY = new Date().getFullYear();
-// Données Google Sheets disponibles jusqu'à l'année précédente (2025)
-const SEASON_END = CY - 1;
+const SHEET_FROM = 2015;
+const SHEET_TO   = 2025; // dernière année avec données complètes
 
 const PRESET_RANGES: Record<SeasonPeriod, [number, number]> = {
-  "5y":  [SEASON_END - 4,  SEASON_END],
-  "10y": [SEASON_END - 10, SEASON_END],
-  "20y": [SEASON_END - 19, SEASON_END],
-  "all": [1971, SEASON_END],
+  "5y":   [2020, SHEET_TO],
+  "10y":  [SHEET_FROM, SHEET_TO],
+  "tout": [SHEET_FROM, SHEET_TO],
 };
 
 const SEASON_LABELS: Record<SeasonPeriod, string> = {
-  "5y":  `5 ans (${SEASON_END-4}–${SEASON_END})`,
-  "10y": `10 ans (${SEASON_END-10}–${SEASON_END})`,
-  "20y": `20 ans (${SEASON_END-19}–${SEASON_END})`,
-  "all": `50+ ans (1971–${SEASON_END})`,
+  "5y":   `5 ans (2020–${SHEET_TO})`,
+  "10y":  `10 ans (2015–${SHEET_TO})`,
+  "tout": `Tout (2015–${SHEET_TO})`,
 };
 
 const MONTH_NAMES_FR = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
@@ -423,8 +420,8 @@ export default function AnalysisPage() {
   const [signalF,      setSignalF]      = useState<"All"|"BUY"|"SELL"|"NEUTRAL">("All");
   const [lastFetch,    setLastFetch]    = useState<Date|null>(null);
   const [seasonPeriod,  setSeasonPeriod]  = useState<SeasonPeriod>("10y");
-  const [fromYear,      setFromYear]      = useState<string>(String(SEASON_END - 10));
-  const [toYear,        setToYear]        = useState<string>(String(SEASON_END));
+  const [fromYear,      setFromYear]      = useState<string>(String(SHEET_FROM));
+  const [toYear,        setToYear]        = useState<string>(String(SHEET_TO));
   const [seasonData,    setSeasonData]    = useState<Record<string, number[]> | null>(null);
   const [seasonLoading, setSeasonLoading] = useState(false);
   const [seasonMode,    setSeasonMode]    = useState<"preset"|"custom">("preset");
@@ -432,7 +429,7 @@ export default function AnalysisPage() {
 
   // Fonction centrale : récupère la saisonnalité depuis Google Sheets pour une plage d'années
   const fetchSeasonRange = useCallback(async (from: number, to: number) => {
-    if (isNaN(from) || isNaN(to) || from >= to || from < 1971) return;
+    if (isNaN(from) || isNaN(to) || from >= to || from < SHEET_FROM) return;
     setSeasonLoading(true);
     try {
       const allPairs = [
@@ -479,7 +476,7 @@ export default function AnalysisPage() {
     return () => clearInterval(id);
   }, [load]);
 
-  // Charge la saisonnalité Google Sheets au démarrage (preset "10y" par défaut = 2015–2025)
+  // Charge la saisonnalité Google Sheets au démarrage (preset "10y" = 2015–2025)
   useEffect(() => {
     const [from, to] = PRESET_RANGES["10y"];
     fetchSeasonRange(from, to);
@@ -584,7 +581,7 @@ export default function AnalysisPage() {
                   background:seasonMode==="preset"&&seasonPeriod===p?"rgba(212,175,55,0.18)":"transparent",
                   border:`1px solid ${seasonMode==="preset"&&seasonPeriod===p?"rgba(212,175,55,0.45)":"transparent"}`,
                   color:seasonMode==="preset"&&seasonPeriod===p?"#f0c84a":"#475569", whiteSpace:"nowrap",
-                }}>{p === "all" ? "50Y+" : p.toUpperCase()}</button>
+                }}>{p === "tout" ? "Tout" : p.toUpperCase()}</button>
               ))}
             </div>
 
@@ -593,14 +590,14 @@ export default function AnalysisPage() {
               <input
                 type="number" value={fromYear}
                 onChange={e => setFromYear(e.target.value)}
-                min={1971} max={2024} step={1}
+                min={SHEET_FROM} max={SHEET_TO - 1} step={1}
                 style={{ width:46, background:"transparent", border:"none", color:"#94a3b8", fontSize:11, fontFamily:"JetBrains Mono, monospace", outline:"none", textAlign:"center" }}
               />
               <span style={{ color:"#334155", fontSize:10 }}>→</span>
               <input
                 type="number" value={toYear}
                 onChange={e => setToYear(e.target.value)}
-                min={1972} max={SEASON_END} step={1}
+                min={SHEET_FROM + 1} max={SHEET_TO} step={1}
                 style={{ width:46, background:"transparent", border:"none", color:"#94a3b8", fontSize:11, fontFamily:"JetBrains Mono, monospace", outline:"none", textAlign:"center" }}
               />
               <button
