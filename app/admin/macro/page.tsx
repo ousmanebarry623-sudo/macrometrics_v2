@@ -44,7 +44,7 @@ export default function AdminMacroPage() {
     const ov   = overrides[selected] ?? {};
     const filled = EMPTY_FORM();
     for (const f of FIELDS) {
-      const val = (ov[f.key] !== undefined ? ov[f.key] : (base as Record<string, unknown>)[f.key]);
+      const val = (ov[f.key] !== undefined ? ov[f.key] : (base as unknown as Record<string, unknown>)[f.key]);
       filled[f.key] = val !== null && val !== undefined ? String(val) : "";
     }
     setForm(filled);
