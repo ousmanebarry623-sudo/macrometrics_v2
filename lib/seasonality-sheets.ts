@@ -5,16 +5,35 @@ export const SHEET_ID  = "1hVlCN-fdH30zAVasyoEsUCkcGtyxzSPOxLaJQ3F01cY";
 export const SHEET_TTL = 2 * 60 * 60 * 1000; // 2h cache brut
 
 export const PAIR_TO_TAB: Record<string, string> = {
+  // ── Majors ────────────────────────────────────────────────────────────────
   "EUR/USD": "EURUSD", "GBP/USD": "GBPUSD", "USD/JPY": "USDJPY",
   "USD/CHF": "USDCHF", "USD/CAD": "USDCAD", "AUD/USD": "AUDUSD",
   "NZD/USD": "NZDUSD",
+  // ── EUR Crosses ───────────────────────────────────────────────────────────
   "EUR/GBP": "EURGBP", "EUR/JPY": "EURJPY", "EUR/CAD": "EURCAD",
-  "EUR/AUD": "EURAUD", "GBP/JPY": "GBPJPY", "GBP/AUD": "GBPAUD",
-  "GBP/CAD": "GBPCAD", "GBP/NZD": "GBPNZD", "AUD/JPY": "AUDJPY",
-  "AUD/CAD": "AUDCAD", "AUD/NZD": "AUDNZD", "NZD/JPY": "NZDJPY",
-  "CAD/JPY": "CADJPY", "USD/MXN": "USDMXN",
+  "EUR/AUD": "EURAUD", "EUR/CHF": "EURCHF", "EUR/NZD": "EURNZD",
+  // ── GBP Crosses ───────────────────────────────────────────────────────────
+  "GBP/JPY": "GBPJPY", "GBP/AUD": "GBPAUD", "GBP/CAD": "GBPCAD",
+  "GBP/CHF": "GBPCHF", "GBP/NZD": "GBPNZD",
+  // ── AUD Crosses ───────────────────────────────────────────────────────────
+  "AUD/JPY": "AUDJPY", "AUD/CAD": "AUDCAD", "AUD/NZD": "AUDNZD",
+  "AUD/CHF": "AUDCHF",
+  // ── NZD Crosses ───────────────────────────────────────────────────────────
+  "NZD/JPY": "NZDJPY", "NZD/CHF": "NZDCHF", "NZD/CAD": "NZDCAD",
+  // ── CAD / CHF / JPY Crosses ───────────────────────────────────────────────
+  "CAD/JPY": "CADJPY", "CAD/CHF": "CADCHF", "CHF/JPY": "CHFJPY",
+  // ── Autres ────────────────────────────────────────────────────────────────
+  "USD/MXN": "USDMXN",
+  // ── Matières premières ────────────────────────────────────────────────────
   "XAU/USD": "XAUUSD", "XAG/USD": "XAGUSD",
-  "WTI/USD": "WTIUSD", "XCU/USD": "XCUUSD",
+  "WTI/USD": "WTIUSD", "WTI Oil": "WTIUSD",
+  "XCU/USD": "XCUUSD", "Copper":  "XCUUSD",
+  "Nat. Gas": "NATGAS",
+  // ── Indices ───────────────────────────────────────────────────────────────
+  "S&P 500":    "SPX500",
+  "Nasdaq 100": "NDX100",
+  "Dow Jones":  "DJIA",
+  "Russell 2000": "RUT2000",
 };
 
 export const MONTH_NAMES = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
@@ -143,22 +162,32 @@ export async function fetchAllPairsSeasonality(): Promise<Record<string, { bias:
     return allPairsCacheStore.data;
   }
 
-  const toYear   = new Date().getFullYear() - 1; // données disponibles jusqu'à l'année précédente
+  const toYear   = new Date().getFullYear() - 1; // données disponibles jusqu'à l'année précédente (2025)
   const monthIdx = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Paris" })).getMonth();
-  const pairs    = Object.keys(PAIR_TO_TAB);
 
-  const results = await Promise.all(
-    pairs.map(async (pair) => {
-      const tab  = PAIR_TO_TAB[pair];
+  // Dédupliquer les tabs (plusieurs labels peuvent pointer vers le même onglet)
+  const tabToPairs: Record<string, string[]> = {};
+  for (const [pair, tab] of Object.entries(PAIR_TO_TAB)) {
+    if (!tabToPairs[tab]) tabToPairs[tab] = [];
+    tabToPairs[tab].push(pair);
+  }
+
+  const entries = Object.entries(tabToPairs);
+  const fetched = await Promise.all(
+    entries.map(async ([tab, pairLabels]) => {
       const rows = await fetchSheetRaw(tab);
-      if (!rows || rows.length === 0) return { pair, bias: 0, trend: new Array(12).fill(0) };
-      const { trend } = computeRangeStats(rows, 1971, toYear);
-      return { pair, bias: trend[monthIdx], trend };
+      if (!rows || rows.length === 0) {
+        return pairLabels.map(pair => ({ pair, bias: 0, trend: new Array(12).fill(0) }));
+      }
+      const { trend } = computeRangeStats(rows, 2015, toYear);
+      return pairLabels.map(pair => ({ pair, bias: trend[monthIdx], trend }));
     })
   );
 
   const data: Record<string, { bias: number; trend: number[] }> = {};
-  for (const { pair, bias, trend } of results) data[pair] = { bias, trend };
+  for (const group of fetched) {
+    for (const { pair, bias, trend } of group) data[pair] = { bias, trend };
+  }
 
   allPairsCacheStore = { data, ts: Date.now() };
   return data;
