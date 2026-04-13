@@ -1,6 +1,11 @@
 // Shared Google Sheets seasonality logic
 // Used by /api/seasonality-range and /api/signal-analysis
 
+import { kv } from "@/lib/redis";
+
+const SEASONALITY_REDIS_KEY = "seasonality:all-pairs";
+const SEASONALITY_REDIS_TTL = 30 * 60; // 30 minutes en secondes
+
 export const SHEET_ID  = "1hVlCN-fdH30zAVasyoEsUCkcGtyxzSPOxLaJQ3F01cY";
 export const SHEET_TTL = 2 * 60 * 60 * 1000; // 2h cache brut
 
@@ -158,9 +163,19 @@ let allPairsCacheStore: { data: Record<string, { bias: number; trend: number[] }
 const ALL_PAIRS_TTL = 30 * 60 * 1000; // 30 min
 
 export async function fetchAllPairsSeasonality(): Promise<Record<string, { bias: number; trend: number[] }>> {
+  // Cache module-level (warm instance)
   if (allPairsCacheStore && Date.now() - allPairsCacheStore.ts < ALL_PAIRS_TTL) {
     return allPairsCacheStore.data;
   }
+
+  // Cache Redis partagé (survit aux nouvelles invocations serverless)
+  try {
+    const cached = await kv.get<Record<string, { bias: number; trend: number[] }>>(SEASONALITY_REDIS_KEY);
+    if (cached && Object.keys(cached).length > 0) {
+      allPairsCacheStore = { data: cached, ts: Date.now() };
+      return cached;
+    }
+  } catch { /* Redis indisponible → continuer */ }
 
   const toYear   = new Date().getFullYear() - 1; // données disponibles jusqu'à l'année précédente (2025)
   const monthIdx = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Paris" })).getMonth();
@@ -190,5 +205,6 @@ export async function fetchAllPairsSeasonality(): Promise<Record<string, { bias:
   }
 
   allPairsCacheStore = { data, ts: Date.now() };
+  kv.set(SEASONALITY_REDIS_KEY, data, { ex: SEASONALITY_REDIS_TTL }).catch(() => {});
   return data;
 }
