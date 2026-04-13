@@ -8,7 +8,6 @@ const NAV = [
   { label: "Dashboard",       href: "/" },
   { label: "Signal ⚡",       href: "/signal" },
   { label: "Analyse",         href: "/analysis" },
-  { label: "Macro 📊",        href: "/macro" },
   { label: "Calendrier",      href: "/calendar" },
   { label: "COT & Retail",    href: "/cot" },
   { label: "Saisonnalité G8", href: "/seasonality" },
