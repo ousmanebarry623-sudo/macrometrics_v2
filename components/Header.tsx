@@ -12,6 +12,7 @@ const NAV = [
   { label: "COT & Retail",    href: "/cot" },
   { label: "Saisonnalité G8", href: "/seasonality" },
   { label: "News",            href: "/news" },
+  { label: "Méthodo",         href: "/methodology" },
 ];
 
 function getParis() {

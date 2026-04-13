@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import type { PairSignal } from "@/app/api/signal-analysis/route";
+import InfoTooltip from "@/components/InfoTooltip";
 
 interface NewsArticle {
   title:   string;
@@ -681,9 +682,14 @@ export default function AnalysisPage() {
               padding:"8px 16px", borderBottom:"1px solid #161630",
               fontSize:9, fontWeight:700, color:"#334155", textTransform:"uppercase", letterSpacing:"0.1em",
             }}>
-              <span>PAIRE</span><span>SIGNAL</span><span>CONFIANCE</span>
-              <span>INSTITUTIONNEL</span><span>FONDAMENTAL</span><span>SENTIMENT</span>
-              <span>SAISONNALITÉ</span><span>QUALITÉ</span>
+              <span>PAIRE</span>
+              <span>SIGNAL</span>
+              <span>CONFIANCE</span>
+              <span style={{display:"flex",alignItems:"center"}}>INSTITUTIONNEL<InfoTooltip content="COT CFTC — z-score des positions nettes non-commerciaux sur 52 semaines. Hebdomadaire, délai 3 jours ouvrés." /></span>
+              <span style={{display:"flex",alignItems:"center"}}>FONDAMENTAL<InfoTooltip content="Surprises macro 30j (TradingView Calendar). Actual vs Forecast sur les 30 derniers événements de la devise. Mise à jour continue." /></span>
+              <span style={{display:"flex",alignItems:"center"}}>SENTIMENT<InfoTooltip content="MyFXBook Community Outlook — ratio long/short retail. Utilisé en contrarian : majorité long = signal bearish institutionnel potentiel." /></span>
+              <span style={{display:"flex",alignItems:"center"}}>SAISONNALITÉ<InfoTooltip content="Rendement mensuel moyen historique (Google Sheets 2015–2025). avg > 0 → Bullish, avg < 0 → Bearish. Ajustable via le filtre de période." /></span>
+              <span style={{display:"flex",alignItems:"center"}}>QUALITÉ<InfoTooltip content="Score 0–100 d'alignement des 4 facteurs. HIGH (≥80) = 4 facteurs alignés. LOW (<50) = ≤2 facteurs alignés." /></span>
             </div>
 
             {filtered.map((p, i) => {
