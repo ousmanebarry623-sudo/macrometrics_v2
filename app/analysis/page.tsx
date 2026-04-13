@@ -64,6 +64,14 @@ const SEASON_LABELS: Record<SeasonPeriod, string> = {
   "tout": `Tout (2015–${SHEET_TO})`,
 };
 
+const SEASON_PRESETS = [
+  { label: "1 an",   from: 2024,       to: SHEET_TO },
+  { label: "3 ans",  from: 2022,       to: SHEET_TO },
+  { label: "5 ans",  from: 2020,       to: SHEET_TO },
+  { label: "10 ans", from: SHEET_FROM, to: SHEET_TO },
+  { label: "Tout",   from: SHEET_FROM, to: SHEET_TO },
+];
+
 const MONTH_NAMES_FR = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
 
 // Lit depuis les données Google Sheets (state seasonData)
@@ -424,8 +432,10 @@ export default function AnalysisPage() {
   const [toYear,        setToYear]        = useState<string>(String(SHEET_TO));
   const [seasonData,    setSeasonData]    = useState<Record<string, number[]> | null>(null);
   const [seasonLoading, setSeasonLoading] = useState(false);
-  const [seasonMode,    setSeasonMode]    = useState<"preset"|"custom">("preset");
-  const [news,          setNews]          = useState<NewsArticle[]>([]);
+  const [seasonMode,        setSeasonMode]        = useState<"preset"|"custom">("preset");
+  const [showSeasonFilter,  setShowSeasonFilter]  = useState(true);
+  const [activePresetLabel, setActivePresetLabel] = useState<string>("10 ans");
+  const [news,             setNews]             = useState<NewsArticle[]>([]);
 
   // Fonction centrale : récupère la saisonnalité depuis Google Sheets pour une plage d'années
   const fetchSeasonRange = useCallback(async (from: number, to: number) => {
@@ -564,60 +574,94 @@ export default function AnalysisPage() {
               );
             })}
           </div>
-          {/* Sélecteur saisonnalité */}
-          <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:"auto", flexWrap:"wrap" }}>
-            <span style={{ fontSize:10, color:"#475569", whiteSpace:"nowrap" }}>📅 Saison :</span>
-
-            {/* Presets */}
-            <div style={{ display:"flex", gap:2, background:"#0d0d1a", border:"1px solid #1c1c38", borderRadius:8, padding:"2px 3px" }}>
-              {(["5y","10y","20y","all"] as const).map(p => (
-                <button key={p} onClick={() => {
-                  setSeasonPeriod(p);
-                  setSeasonMode("preset");
-                  const [from, to] = PRESET_RANGES[p];
-                  fetchSeasonRange(from, to);
-                }} style={{
-                  fontSize:10, fontWeight:seasonMode==="preset"&&seasonPeriod===p?700:500, padding:"2px 8px", borderRadius:5, cursor:"pointer",
-                  background:seasonMode==="preset"&&seasonPeriod===p?"rgba(212,175,55,0.18)":"transparent",
-                  border:`1px solid ${seasonMode==="preset"&&seasonPeriod===p?"rgba(212,175,55,0.45)":"transparent"}`,
-                  color:seasonMode==="preset"&&seasonPeriod===p?"#f0c84a":"#475569", whiteSpace:"nowrap",
-                }}>{p === "tout" ? "Tout" : p.toUpperCase()}</button>
-              ))}
-            </div>
-
-            {/* Custom range */}
-            <div style={{ display:"flex", alignItems:"center", gap:4, background:"#0d0d1a", border:`1px solid ${seasonMode==="custom"?"rgba(212,175,55,0.45)":"#1c1c38"}`, borderRadius:8, padding:"3px 8px" }}>
-              <input
-                type="number" value={fromYear}
-                onChange={e => setFromYear(e.target.value)}
-                min={SHEET_FROM} max={SHEET_TO - 1} step={1}
-                style={{ width:46, background:"transparent", border:"none", color:"#94a3b8", fontSize:11, fontFamily:"JetBrains Mono, monospace", outline:"none", textAlign:"center" }}
-              />
-              <span style={{ color:"#334155", fontSize:10 }}>→</span>
-              <input
-                type="number" value={toYear}
-                onChange={e => setToYear(e.target.value)}
-                min={SHEET_FROM + 1} max={SHEET_TO} step={1}
-                style={{ width:46, background:"transparent", border:"none", color:"#94a3b8", fontSize:11, fontFamily:"JetBrains Mono, monospace", outline:"none", textAlign:"center" }}
-              />
-              <button
-                onClick={fetchCustomSeason}
-                disabled={seasonLoading}
-                style={{
-                  fontSize:10, fontWeight:700, padding:"1px 8px", borderRadius:5, cursor:"pointer",
-                  background:seasonMode==="custom"?"rgba(212,175,55,0.18)":"rgba(240,200,74,0.06)",
-                  border:`1px solid ${seasonMode==="custom"?"rgba(212,175,55,0.5)":"rgba(240,200,74,0.2)"}`,
-                  color:"#f0c84a", opacity:seasonLoading?0.5:1, whiteSpace:"nowrap",
-                }}>
-                {seasonLoading ? "…" : "Calculer"}
-              </button>
-            </div>
-          </div>
-
-          <span style={{ fontSize:11, color:"#334155", alignSelf:"center" }}>
+          <span style={{ fontSize:11, color:"#334155", alignSelf:"center", marginLeft:"auto" }}>
             {filtered.length} paires
           </span>
         </div>
+
+        {/* Sélecteur saisonnalité — style SeasonalityG8 */}
+        {(() => {
+          const yearsCount = Math.max(0, parseInt(toYear) - parseInt(fromYear) + 1);
+          return (
+            <div style={{ marginBottom:16, padding:"12px 14px", background:"#0d0d1a", border:`1px solid ${showSeasonFilter?"rgba(212,175,55,0.3)":"#1c1c38"}`, borderRadius:8 }}>
+              {/* Toggle row */}
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom: showSeasonFilter ? 10 : 0 }}>
+                <button onClick={() => setShowSeasonFilter(v => !v)} style={{ display:"flex", alignItems:"center", gap:7, background:"none", border:"none", cursor:"pointer", padding:0 }}>
+                  <div style={{ width:34, height:18, borderRadius:999, background: showSeasonFilter?"rgba(212,175,55,0.25)":"#1c1c38", border:`1px solid ${showSeasonFilter?"rgba(212,175,55,0.5)":"#2a2a50"}`, position:"relative", transition:"all 0.2s", flexShrink:0 }}>
+                    <div style={{ position:"absolute", top:2, left: showSeasonFilter ? 16 : 2, width:12, height:12, borderRadius:"50%", background: showSeasonFilter?"#f0c84a":"#475569", transition:"left 0.2s" }} />
+                  </div>
+                  <span style={{ fontSize:11, fontWeight:600, color: showSeasonFilter?"#f0c84a":"#475569" }}>Filtre par période</span>
+                </button>
+                {showSeasonFilter && (
+                  <span style={{ fontSize:10, color:"#475569", marginLeft:"auto" }}>
+                    {yearsCount} années sélectionnées
+                  </span>
+                )}
+              </div>
+
+              {showSeasonFilter && (
+                <>
+                  {/* Presets */}
+                  <div style={{ display:"flex", gap:4, marginBottom:10, flexWrap:"wrap" }}>
+                    {SEASON_PRESETS.map(p => {
+                      const isActive = seasonMode === "preset" && activePresetLabel === p.label;
+                      return (
+                        <button key={p.label} onClick={() => {
+                          setActivePresetLabel(p.label);
+                          setSeasonMode("preset");
+                          setFromYear(String(p.from));
+                          setToYear(String(p.to));
+                          fetchSeasonRange(p.from, p.to);
+                        }} style={{
+                          fontSize:10, fontWeight:600, padding:"2px 10px", borderRadius:5, cursor:"pointer",
+                          background: isActive?"rgba(212,175,55,0.15)":"transparent",
+                          border:`1px solid ${isActive?"rgba(212,175,55,0.4)":"#1c1c38"}`,
+                          color: isActive?"#f0c84a":"#64748b",
+                        }}>{p.label}</button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Custom range */}
+                  <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:11, flexWrap:"wrap" }}>
+                    <span style={{ color:"#475569" }}>De</span>
+                    <input
+                      type="number" value={fromYear}
+                      onChange={e => { setFromYear(e.target.value); setSeasonMode("custom"); setActivePresetLabel(""); }}
+                      min={SHEET_FROM} max={SHEET_TO - 1} step={1}
+                      style={{ width:62, background:"#10101e", border:"1px solid #2a2a50", borderRadius:5, color:"#f0c84a", fontSize:11, padding:"3px 6px", textAlign:"center", fontFamily:"JetBrains Mono, monospace" }}
+                    />
+                    <span style={{ color:"#475569" }}>à</span>
+                    <input
+                      type="number" value={toYear}
+                      onChange={e => { setToYear(e.target.value); setSeasonMode("custom"); setActivePresetLabel(""); }}
+                      min={SHEET_FROM + 1} max={SHEET_TO} step={1}
+                      style={{ width:62, background:"#10101e", border:"1px solid #2a2a50", borderRadius:5, color:"#f0c84a", fontSize:11, padding:"3px 6px", textAlign:"center", fontFamily:"JetBrains Mono, monospace" }}
+                    />
+                    {parseInt(toYear) === SHEET_TO && (
+                      <span style={{ fontSize:9, color:"#22c55e", background:"rgba(34,197,94,0.08)", padding:"1px 6px", borderRadius:4, border:"1px solid rgba(34,197,94,0.2)" }}>
+                        {SHEET_TO}
+                      </span>
+                    )}
+                    <span style={{ color:"#475569", marginLeft:4 }}>
+                      → <strong style={{ color:"#94a3b8" }}>{Math.max(0, parseInt(toYear) - parseInt(fromYear) + 1)}</strong> ans
+                    </span>
+                    <button
+                      onClick={fetchCustomSeason}
+                      disabled={seasonLoading}
+                      style={{
+                        fontSize:10, fontWeight:700, padding:"3px 12px", borderRadius:5, cursor:"pointer",
+                        background:"rgba(212,175,55,0.18)", border:"1px solid rgba(212,175,55,0.45)",
+                        color:"#f0c84a", opacity:seasonLoading?0.5:1, marginLeft:4,
+                      }}>
+                      {seasonLoading ? "…" : "Calculer"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Error/Loading */}
         {error && <div style={{ padding:24, textAlign:"center", color:"#ef4444", fontSize:13 }}>⚠ {error}</div>}
