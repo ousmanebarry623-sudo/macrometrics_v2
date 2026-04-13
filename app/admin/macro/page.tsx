@@ -184,7 +184,7 @@ export default function AdminMacroPage() {
           {/* Fields grid */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
             {FIELDS.map(f => {
-              const base = (MACRO_COUNTRIES.find(c => c.code === selected) as Record<string, unknown>)?.[f.key];
+              const base = (MACRO_COUNTRIES.find(c => c.code === selected) as unknown as Record<string, unknown>)?.[f.key];
               const ov   = (overrides[selected] ?? {})[f.key];
               const isModified = ov !== undefined && ov !== null;
               return (
