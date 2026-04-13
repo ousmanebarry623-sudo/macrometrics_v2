@@ -17,7 +17,7 @@ export default function SeasonalityPage() {
         {[
           { icon: "📄", title: "Vos propres données", desc: `Données saisonnières importées depuis votre Google Sheets. Retours mensuels sur mesure, ${currentMonthName} mis en surbrillance.` },
           { icon: "🌡", title: "Heatmap complète", desc: "Vue de toutes les paires du groupe. Vert = tendance haussière historique, Rouge = baissière." },
-          { icon: "⚡", title: "Plage personnalisée", desc: "Filtrez par période libre (ex: 2018–2023) ou utilisez les presets 1/3/5/10/15/20 ans. Recalcul instantané des stats." },
+          { icon: "⚡", title: "Plage personnalisée", desc: "Filtrez par période libre (2015–2025) ou utilisez les presets 1/3/5/10 ans. Recalcul instantané des stats sur la plage sélectionnée." },
         ].map(({ icon, title, desc }) => (
           <div key={title} style={{ background: "#10101e", border: "1px solid #1c1c38", borderRadius: 10, padding: "14px 16px" }}>
             <div style={{ fontSize: 20, marginBottom: 8 }}>{icon}</div>

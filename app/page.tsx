@@ -28,7 +28,7 @@ export default function HomePage() {
           <span style={{ background: "linear-gradient(135deg, #d4af37, #f0c84a)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Données Réelles.</span>
         </h1>
         <p style={{ fontSize: 14, color: "#64748b", marginTop: 8, maxWidth: 600 }}>
-          COT institutionnel · Sentiment retail · G8 28 paires · Saisonnalité · Graphiques · Actualités
+          COT CFTC · Sentiment retail · G8 28 paires · Saisonnalité 2015–2025 · Biais journalier · Actualités
         </p>
       </div>
 

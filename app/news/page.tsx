@@ -8,7 +8,7 @@ export default function NewsPage() {
     <div style={{ maxWidth: 1600, margin: "0 auto", padding: "24px 20px" }}>
       <div style={{ marginBottom: 22 }}>
         <h1 style={{ fontSize: 28, fontWeight: 800, color: "#f1f5f9" }}>Analyse Fondamentale</h1>
-        <p style={{ fontSize: 13, color: "#475569", marginTop: 6 }}>🇫🇷 {parisDate} · FXStreet · ForexLive · InvestingLive</p>
+        <p style={{ fontSize: 13, color: "#475569", marginTop: 6 }}>🇫🇷 {parisDate} · Google News RSS · ForexLive · DailyFX · Reuters</p>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
         <FundamentalFeed limit={50} />
@@ -16,9 +16,10 @@ export default function NewsPage() {
           <div style={{ background: "#10101e", border: "1px solid #1c1c38", borderRadius: 12, padding: 20 }}>
             <h3 style={{ fontSize: 14, fontWeight: 700, color: "#94a3b8", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.05em" }}>Sources</h3>
             {[
-              { name: "FXStreet", color: "#06b6d4", tag: "Forex", desc: "Analyse forex & calendrier économique" },
-              { name: "ForexLive", color: "#22c55e", tag: "Forex", desc: "Commentaires live, BCE, Fed, BOJ" },
-              { name: "InvestingLive", color: "#10b981", tag: "Markets", desc: "Actualité marchés en temps réel" },
+              { name: "Google News RSS",  color: "#4285f4", tag: "Multi",  desc: "Agrégateur mondial · Forex, Indices, Macro" },
+              { name: "ForexLive",        color: "#22c55e", tag: "Forex",  desc: "Commentaires live — BCE, Fed, BoJ, RBA" },
+              { name: "DailyFX",          color: "#f0c84a", tag: "Forex",  desc: "Analyses institutionnelles · Niveaux clés" },
+              { name: "Reuters Markets",  color: "#ef4444", tag: "Markets", desc: "Actualité marchés & macro temps réel" },
             ].map(({ name, color, tag, desc }) => (
               <div key={name} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "8px 0", borderBottom: "1px solid #1c1c3840" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -36,12 +37,14 @@ export default function NewsPage() {
           <div style={{ background: "#10101e", border: "1px solid #1c1c38", borderRadius: 12, padding: 20 }}>
             <h3 style={{ fontSize: 14, fontWeight: 700, color: "#94a3b8", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>Thèmes Clés</h3>
             {[
-              "Fed & BCE → impact USD/EUR/GBP",
-              "CPI/Inflation → Gold, devises refuges",
-              "NFP → USD, risk-on/off global",
-              "Géopolitique → XAU/USD, CHF, JPY",
-              "BoJ → JPY, carry trades",
-              "Pétrole → CAD, inflation mondiale",
+              "Fed (FOMC) → USD · taux, dot plot",
+              "BCE (ECB) → EUR/USD, EUR/GBP",
+              "CPI/PCE → Gold, devises refuges (CHF, JPY)",
+              "NFP/Emploi → USD, risk-on/off global",
+              "BoJ → JPY, carry trades (AUD/JPY, EUR/JPY)",
+              "BoC/RBA/RBNZ → CAD, AUD, NZD",
+              "Géopolitique → XAU/USD, CHF safe-haven",
+              "Pétrole (WTI) → CAD, inflation mondiale",
             ].map((t, i) => (
               <div key={i} style={{ display: "flex", gap: 8, marginBottom: 9 }}>
                 <span style={{ color: "#d4af37", fontSize: 12, flexShrink: 0 }}>→</span>
