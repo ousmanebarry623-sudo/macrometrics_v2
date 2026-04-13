@@ -46,14 +46,16 @@ const TOOLTIP = ({ active, payload, label }: { active?: boolean; payload?: { pay
   );
 };
 
-// end: -1 = année précédente (2025), dernière avec données complètes dans le sheet
-const PRESETS = [
-  { label: "1 an",   start: -2,  end: -1 },
-  { label: "3 ans",  start: -4,  end: -1 },
-  { label: "5 ans",  start: -6,  end: -1 },
-  { label: "10 ans", start: -11, end: -1 },
-  { label: "15 ans", start: -16, end: -1 },
-  { label: "20 ans", start: -21, end: -1 },
+// Plage Google Sheet : 2015 → 2025 (année précédente = dernière avec données complètes)
+const SHEET_FROM = 2015;
+const SHEET_TO   = 2025; // seasonEnd fixe
+
+const PRESETS: { label: string; start: number; end: number }[] = [
+  { label: "1 an",   start: 2024, end: SHEET_TO },
+  { label: "3 ans",  start: 2022, end: SHEET_TO },
+  { label: "5 ans",  start: 2020, end: SHEET_TO },
+  { label: "10 ans", start: 2015, end: SHEET_TO },
+  { label: "Tout",   start: SHEET_FROM, end: SHEET_TO },
 ];
 
 export default function SeasonalityG8() {
@@ -67,11 +69,11 @@ export default function SeasonalityG8() {
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth();
 
-  // Date range state — cap à l'année précédente (dernière avec données complètes)
-  const seasonEnd = currentYear - 1;
+  // Date range state — fixée sur la plage du Google Sheet (2015-2025)
+  const seasonEnd = SHEET_TO;
   const [dateEnabled, setDateEnabled] = useState(false);
-  const [startYear, setStartYear] = useState(seasonEnd - 10);
-  const [endYear, setEndYear] = useState(seasonEnd);
+  const [startYear, setStartYear] = useState(SHEET_FROM);
+  const [endYear, setEndYear] = useState(SHEET_TO);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -114,7 +116,7 @@ export default function SeasonalityG8() {
         <div>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Saisonnalité G8 — 28 Paires</h3>
           <p style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>
-            Historique mensuel · {dateEnabled ? `${startYear}–${effectiveEnd} (${effectiveEnd - startYear + 1} ans)` : "10 ans"} · {parisDate}
+            Historique mensuel · {`${startYear}–${effectiveEnd} (${effectiveEnd - startYear + 1} ans)`} · {parisDate}
           </p>
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -161,8 +163,8 @@ export default function SeasonalityG8() {
             {/* Presets */}
             <div style={{ display: "flex", gap: 4, marginBottom: 10, flexWrap: "wrap" }}>
               {PRESETS.map(p => {
-                const sy = seasonEnd + p.start;
-                const ey = seasonEnd + p.end;
+                const sy = p.start;
+                const ey = p.end;
                 const active = startYear === sy && endYear === ey;
                 return (
                   <button key={p.label} onClick={() => { setStartYear(sy); setEndYear(ey); }}
@@ -181,12 +183,12 @@ export default function SeasonalityG8() {
               <span style={{ color: "#475569" }}>De</span>
               <input
                 type="number"
-                min={1990}
+                min={SHEET_FROM}
                 max={effectiveEnd}
                 value={startYear}
                 onChange={e => {
-                  const v = parseInt(e.target.value) || currentYear - 10;
-                  setStartYear(Math.min(effectiveEnd, Math.max(1990, v)));
+                  const v = parseInt(e.target.value) || SHEET_FROM;
+                  setStartYear(Math.min(effectiveEnd, Math.max(SHEET_FROM, v)));
                 }}
                 style={{ width: 62, background: "#10101e", border: "1px solid #2a2a50", borderRadius: 5, color: "#f0c84a", fontSize: 11, padding: "3px 6px", textAlign: "center", fontFamily: "JetBrains Mono, monospace" }}
               />
