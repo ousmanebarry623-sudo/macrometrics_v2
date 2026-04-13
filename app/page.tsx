@@ -7,6 +7,7 @@ import RetailSentimentCard from "@/components/RetailSentimentCard";
 import SeasonalityG8 from "@/components/SeasonalityG8";
 import FundamentalFeed from "@/components/FundamentalFeed";
 import OpenInterestCard from "@/components/OpenInterestCard";
+import DailyBiasCard from "@/components/DailyBiasCard";
 
 export default function HomePage() {
   const parisDate = new Date().toLocaleDateString("fr-FR", {
@@ -33,10 +34,15 @@ export default function HomePage() {
 
       <QuickLinks />
 
-      {/* Row 1: Fear&Greed + Sessions + G8 Overview */}
-      <div style={{ display: "grid", gridTemplateColumns: "220px 320px 1fr", gap: 16, marginBottom: 16 }}>
+      {/* Row 1: Biais Journalier + Fear&Greed + Sessions */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 220px 300px", gap: 16, marginBottom: 16 }}>
+        <DailyBiasCard />
         <FearGreedCard />
         <MarketSessionsCard />
+      </div>
+
+      {/* Row 2: G8 Overview full width */}
+      <div style={{ marginBottom: 16 }}>
         <G8Overview />
       </div>
 
