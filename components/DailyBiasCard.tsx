@@ -19,28 +19,58 @@ interface DailyBias {
 const biasNum = (b: "Bullish" | "Bearish" | "Neutral"): number =>
   b === "Bullish" ? 1 : b === "Bearish" ? -1 : 0;
 
-function determineBias(p: PairSignal): BiasType {
-  const scores = [
-    biasNum(p.institutional.bias),
-    biasNum(p.fundamental.bias),
-    biasNum(p.sentiment.bias),
-    biasNum(p.seasonality.bias),
-  ];
-  const sum = scores.reduce((a, b) => a + b, 0);
-  const bull = scores.filter(s => s === 1).length;
-  const bear = scores.filter(s => s === -1).length;
+// Poids institutionnels : COT > Macro > Sentiment > Saisonnalité
+const WEIGHTS = { cot: 0.40, fund: 0.30, sent: 0.20, seas: 0.10 };
 
-  if (p.signal === "BUY") {
-    return bull >= 3 || p.confidence >= 65 ? "HAUSSIER" : "HAUSSIER MODÉRÉ";
-  }
-  if (p.signal === "SELL") {
-    return bear >= 3 || p.confidence >= 65 ? "BAISSIER" : "BAISSIER MODÉRÉ";
-  }
-  // Neutral signal — refine by factor balance
-  if (sum >= 2)  return "HAUSSIER MODÉRÉ";
-  if (sum <= -2) return "BAISSIER MODÉRÉ";
-  if (bull === bear && p.quality < 40) return "INDÉCIS";
+function weightedScore(p: PairSignal): number {
+  const cotDir  = biasNum(p.institutional.bias);
+  const fundDir = biasNum(p.fundamental.bias);
+  const sentDir = biasNum(p.sentiment.bias);
+  const seasDir = biasNum(p.seasonality.bias);
+
+  // Score de base pondéré (-1.0 → +1.0)
+  const base =
+    cotDir  * WEIGHTS.cot  +
+    fundDir * WEIGHTS.fund +
+    sentDir * WEIGHTS.sent +
+    seasDir * WEIGHTS.seas;
+
+  // Amplification COT par la force du positionnement (strength 0-100 → 0-1)
+  const cotAmplifier = cotDir * (p.institutional.base.strengthPct / 100) * 0.15;
+
+  return base + cotAmplifier;
+}
+
+function determineBias(p: PairSignal): BiasType {
+  const ws = weightedScore(p);
+
+  // Seuils pondérés — basés sur les poids institutionnels réels
+  if (ws >= 0.55)  return "HAUSSIER";
+  if (ws >= 0.18)  return "HAUSSIER MODÉRÉ";
+  if (ws <= -0.55) return "BAISSIER";
+  if (ws <= -0.18) return "BAISSIER MODÉRÉ";
+  if (Math.abs(ws) < 0.05) return "INDÉCIS";
   return "NEUTRE";
+}
+
+// Score confiance adapté : pénalise les signaux splits
+function computeConfidence(p: PairSignal): number {
+  const ws = Math.abs(weightedScore(p));
+  const biases = [p.institutional.bias, p.fundamental.bias, p.sentiment.bias, p.seasonality.bias];
+  const bulls  = biases.filter(b => b === "Bullish").length;
+  const bears  = biases.filter(b => b === "Bearish").length;
+
+  // Forte pénalité si split parfait (ex: 2 bull + 2 bear)
+  if (bulls > 0 && bears > 0 && bulls === bears) {
+    return Math.min(48, Math.round(p.quality * 0.45));
+  }
+
+  // Score basé sur : qualité du signal × alignement pondéré × force COT
+  const alignmentBoost = ws * 30; // max +30 si score pondéré = 1.0
+  const cotBoost = p.institutional.bias !== "Neutral"
+    ? p.institutional.base.strengthPct * 0.08 : 0;
+
+  return Math.min(100, Math.round(p.quality * 0.6 + alignmentBoost + cotBoost));
 }
 
 function buildArgs(p: PairSignal): string[] {
@@ -84,59 +114,89 @@ function buildArgs(p: PairSignal): string[] {
 }
 
 function buildRisk(p: PairSignal): string {
-  const lp = p.sentiment.longPct;
-  if (p.signal === "BUY" && lp > 62) {
-    return `Retail ${lp}% long — risque de liquidation en cascade si le niveau clé cède`;
+  const lp  = p.sentiment.longPct;
+  const ib  = biasNum(p.institutional.bias);
+  const fb  = biasNum(p.fundamental.bias);
+  const wb  = weightedScore(p);
+
+  // Cas 1 : signal split — les deux facteurs dominants se contredisent
+  const biases = [p.institutional.bias, p.fundamental.bias, p.sentiment.bias, p.seasonality.bias];
+  const bulls  = biases.filter(b => b === "Bullish").length;
+  const bears  = biases.filter(b => b === "Bearish").length;
+  if (bulls > 0 && bears > 0 && bulls === bears) {
+    return `Signaux contradictoires : COT/Macro ${ib <= 0 ? "baissiers" : "haussiers"} mais Sentiment/Saison inverses — biais non confirmé, attendre la prochaine publication COT`;
   }
-  if (p.signal === "SELL" && lp < 38) {
-    return `Retail ${lp}% long (foule très courte) — risque de short squeeze si rebond`;
+
+  // Cas 2 : COT et Macro opposés (divergence institutionnelle majeure)
+  if (ib !== 0 && fb !== 0 && ib !== fb) {
+    return `Divergence COT/Macro : institutionnels ${p.institutional.bias.toLowerCase()} (z-score ${p.institutional.base.zScore?.toFixed(1) ?? "—"}) vs surprises macro ${p.fundamental.bias.toLowerCase()} — signal mixte`;
   }
-  if (p.institutional.bias !== "Neutral" && biasNum(p.institutional.bias) !== biasNum(p.fundamental.bias) && p.fundamental.bias !== "Neutral") {
-    return `Divergence COT/Macro : institutionnels ${p.institutional.bias.toLowerCase()} mais fondamentaux ${p.fundamental.bias.toLowerCase()}`;
+
+  // Cas 3 : Retail en foule dans la mauvaise direction
+  if (wb < 0 && lp < 38) {
+    return `Short squeeze potentiel : retail ${lp}% long seulement — tout rebond peut déclencher une compression des shorts`;
   }
-  if (p.confLevel === "LOW") {
-    return `Signaux de faible conviction (qualité ${p.quality}/100) — attendre confirmation`;
+  if (wb > 0 && lp > 62) {
+    return `Excès long retail (${lp}%) — risque de liquidation si niveau support clé cède`;
   }
-  return `Publication macro à fort impact possible dans les 24h — surveiller le calendrier`;
+
+  // Cas 4 : COT à positionnement extrême (retournement contrarian)
+  if (p.institutional.base.strengthPct >= 90) {
+    return `Positionnement COT extrême (${p.institutional.base.strengthPct}%) — risque de retournement si les fondamentaux changent`;
+  }
+
+  // Cas 5 : faible conviction
+  if (p.confLevel === "LOW" || Math.abs(wb) < 0.20) {
+    return `Conviction faible (score pondéré ${(wb * 100).toFixed(0)}/100) — attendre un catalyseur macro pour confirmer la direction`;
+  }
+
+  return `Surveiller le calendrier macro des 24h — tout choc fondamental peut invalider le biais`;
 }
 
 function buildOpportunity(p: PairSignal): string {
-  const ib = biasNum(p.institutional.bias);
-  const fb = biasNum(p.fundamental.bias);
-  const sb = biasNum(p.seasonality.bias);
+  const ib  = biasNum(p.institutional.bias);
+  const fb  = biasNum(p.fundamental.bias);
+  const sb  = biasNum(p.seasonality.bias);
+  const wb  = weightedScore(p);
+  const dir = wb >= 0 ? "haussier" : "baissier";
 
+  // Triple confluence
   if (ib !== 0 && ib === fb && ib === sb) {
-    const dir = ib === 1 ? "haussier" : "baissier";
-    return `Triple confluence COT + Macro + Saisonnalité ${dir} — setup haute probabilité`;
+    return `Triple confluence COT + Macro + Saisonnalité ${dir} — setup haute probabilité institutionnelle`;
   }
+
+  // Double confluence COT + Macro (les plus importants)
   if (ib !== 0 && ib === fb) {
-    const dir = ib === 1 ? "haussier" : "baissier";
-    return `Convergence COT + Macro ${dir} — momentum institutionnel confirmé`;
+    return `Confluence COT + Macro ${dir} — les deux facteurs institutionnels majeurs (70% du score) sont alignés`;
   }
-  if (Math.abs(p.institutional.base.strengthPct - 50) > 35) {
-    const dir = p.institutional.base.strengthPct > 85 ? "extrême long" : "extrême short";
-    return `Positionnement COT ${dir} sur ${p.base} (${p.institutional.base.strengthPct}%) — potentiel retournement contrarian`;
+
+  // COT extrême seul = opportunité contrarian ou continuation
+  if (p.institutional.base.strengthPct >= 85) {
+    const posDir = ib === 1 ? "long extrême" : "short extrême";
+    return `COT ${posDir} (${p.institutional.base.strengthPct}%) — niveau historiquement associé à des retournements ou continuations fortes`;
   }
-  if (p.seasonality.bias !== "Neutral" && p.signal !== "NEUTRAL") {
-    const sDir = p.seasonality.bias === "Bullish" ? "haussier" : "baissier";
-    return `Saisonnalité ${sDir} confirme le signal — contexte macro favorable pour le mois en cours`;
+
+  // Split signal mais domination baissière/haussière pondérée
+  if (Math.abs(wb) >= 0.18) {
+    return `Biais pondéré ${dir} malgré signaux mixtes — COT (40%) + Macro (30%) surpèsent Sentiment et Saisonnalité`;
   }
-  return `Surveiller la publication COT vendredi pour confirmer le positionnement institutionnel`;
+
+  return `Attendre alignement COT + Macro avant entrée — surveiller prochaine publication CFTC vendredi`;
 }
 
 function computeDailyBias(p: PairSignal): DailyBias {
   return {
     pair:        p.pair,
     bias:        determineBias(p),
-    score:       p.quality,
+    score:       computeConfidence(p),   // ← score pondéré réel, pas p.quality brut
     args:        buildArgs(p),
     risk:        buildRisk(p),
     opportunity: buildOpportunity(p),
     factors: [
-      { label: "COT",     bias: p.institutional.bias, detail: `${p.institutional.base.strengthPct}% force` },
-      { label: "Macro",   bias: p.fundamental.bias,   detail: `${p.fundamental.netScore >= 0 ? "+" : ""}${p.fundamental.netScore.toFixed(1)}` },
-      { label: "Sentiment", bias: p.sentiment.bias,   detail: `${p.sentiment.longPct}% L` },
-      { label: "Saison",  bias: p.seasonality.bias,   detail: p.seasonality.month },
+      { label: "COT (40%)",  bias: p.institutional.bias, detail: `${p.institutional.base.strengthPct}% · z${p.institutional.base.zScore?.toFixed(1) ?? "—"}` },
+      { label: "Macro (30%)", bias: p.fundamental.bias,  detail: `${p.fundamental.netScore >= 0 ? "+" : ""}${p.fundamental.netScore.toFixed(1)}` },
+      { label: "Sent (20%)", bias: p.sentiment.bias,     detail: `${p.sentiment.longPct}% L` },
+      { label: "Saison (10%)", bias: p.seasonality.bias, detail: p.seasonality.month },
     ],
   };
 }
