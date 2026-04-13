@@ -156,6 +156,11 @@ async function processSymbol(
 
   const sig = dash.lastSignal;
 
+  // Ignorer les signaux trop anciens (> 3 bougies) — évite d'envoyer des signaux historiques
+  if (dash.barsSince > 3) {
+    return { sent: false, score: null, reason: `signal trop ancien (${dash.barsSince} bougies)` };
+  }
+
   // Vérifier si ce signal a déjà été envoyé
   const kvKey = `autosend_lastsig:${sym.yf}:${sym.tfLabel}`;
   const lastSentTime = kv ? await kv.get<number>(kvKey) : null;
