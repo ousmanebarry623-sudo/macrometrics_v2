@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties, ReactNode } from "react";
 
 export const metadata = { title: "À propos — MacroMetrics" };
 
@@ -71,7 +72,7 @@ export default function AboutPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div style={{ marginBottom: 36 }}>
       <h2 style={{ fontSize: 13, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid #1c1c38" }}>{title}</h2>
@@ -80,7 +81,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-const p: React.CSSProperties = { fontSize: 13, color: "#94a3b8", lineHeight: 1.7 };
+const p: CSSProperties = { fontSize: 13, color: "#94a3b8", lineHeight: 1.7 };
 
 const SOURCES = [
   { icon: "🏛️", name: "CFTC — Commitments of Traders (COT)",    freq: "Hebdomadaire",  desc: "Rapport officiel de la Commodity Futures Trading Commission. Publié chaque vendredi à 15h30 EST, référence les positions nettes des non-commerciaux (institutionnels) sur les futures réglementés (CME, ICE). Délai de 3 jours ouvrés." },

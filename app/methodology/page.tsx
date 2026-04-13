@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 export const metadata = { title: "Méthodologie — MacroMetrics" };
 
@@ -109,7 +110,7 @@ export default function MethodologyPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div style={{ marginBottom: 40 }}>
       <h2 style={{ fontSize: 12, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid #1c1c38" }}>{title}</h2>
