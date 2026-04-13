@@ -69,7 +69,7 @@ export default function AdminMacroPage() {
       const json = await res.json();
       if (json.ok) {
         setStatus(`✅ ${selected} mis à jour — ${json.fields?.length ?? 0} champs sauvegardés`);
-        setOverrides(prev => ({ ...prev, [selected]: { ...(prev[selected] ?? {}), ...data } }));
+        setOverrides(prev => ({ ...prev, [selected]: { ...(prev[selected] ?? {}), ...(data as Override) } } as OverrideStore));
       } else {
         setStatus(`❌ Erreur: ${json.error}`);
       }
