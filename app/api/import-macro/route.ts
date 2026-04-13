@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { kv } from "@/lib/redis";
-import { REDIS_MACRO_KEY, MACRO_COUNTRIES, type CountryMacro } from "@/lib/trading-economics";
+import { MACRO_COUNTRIES, type CountryMacro } from "@/lib/trading-economics";
+
+const REDIS_MACRO_KEY = "macro:override:v1";
 
 export const dynamic = "force-dynamic";
 

@@ -170,9 +170,6 @@ export function setMacroCache(data: CountryMacro[]) {
   macroCache = { data, ts: Date.now() };
 }
 
-// ── Redis override key prefix ─────────────────────────────────────────────────
-export const REDIS_MACRO_KEY = "macro:override:v1";
-
 // ── Fetch from TradingEconomics ───────────────────────────────────────────────
 const TE_COUNTRY_MAP: Record<string, string> = {
   US: "united%20states", EU: "euro%20area", GB: "united%20kingdom",
@@ -244,19 +241,7 @@ export async function fetchAllMacroData(): Promise<CountryMacro[]> {
 
   let data = MACRO_COUNTRIES.map(c => ({ ...c }));
 
-  // ── 1. Redis manual overrides (highest priority) ───────────────────────────
-  try {
-    const { kv } = await import("@/lib/redis");
-    const overrides = await kv.get<Record<string, Partial<CountryMacro>>>(REDIS_MACRO_KEY);
-    if (overrides) {
-      data = data.map(c => {
-        const ov = overrides[c.code];
-        return ov ? { ...c, ...ov, source: "live" as const } : c;
-      });
-    }
-  } catch { /* Redis not available */ }
-
-  // ── 2. TradingEconomics live API (if key configured & no Redis override) ───
+  // TradingEconomics live API (if key configured)
   if (apiKey) {
     const liveResults = await Promise.allSettled(
       data.map(c => fetchTECountry(c.code))
@@ -270,7 +255,7 @@ export async function fetchAllMacroData(): Promise<CountryMacro[]> {
     });
   }
 
-  // ── 3. Compute scores ──────────────────────────────────────────────────────
+  // Compute scores
   data = data.map(c => ({
     ...c,
     score: computeMacroScore(c),

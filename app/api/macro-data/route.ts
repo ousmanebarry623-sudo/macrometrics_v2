@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { fetchAllMacroData, CENTRAL_BANKS_FALLBACK, computeFXMacro, type CountryMacro } from "@/lib/trading-economics";
+import { kv } from "@/lib/redis";
+
+const REDIS_MACRO_KEY = "macro:override:v1";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +18,19 @@ export async function GET(req: Request) {
   const type = url.searchParams.get("type") ?? "all";
 
   try {
-    const countries = await fetchAllMacroData();
+    let countries = await fetchAllMacroData();
+
+    // Apply Redis manual overrides (server-only — highest priority)
+    try {
+      const overrides = await kv.get<Record<string, Partial<CountryMacro>>>(REDIS_MACRO_KEY);
+      if (overrides) {
+        countries = countries.map(c => {
+          const ov = overrides[c.code];
+          return ov ? { ...c, ...ov, source: "live" as const } : c;
+        });
+      }
+    } catch { /* Redis not available — use fallback */ }
+
     const byCode: Record<string, CountryMacro> = Object.fromEntries(countries.map(c => [c.code, c]));
 
     if (type === "countries") {
