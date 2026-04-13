@@ -140,13 +140,11 @@ export function computeRangeStats(rows: YearlyRow[], from: number, to: number): 
     const avg        = vals.reduce((a, b) => a + b, 0) / vals.length;
     const bullishPct = Math.round((vals.filter(v => v > 0).length / vals.length) * 100);
 
-    // Règle de majorité : avg et bullishPct dans le même sens → biais confirmé
+    // Règle directe : avg reflète fidèlement les données du sheet
+    // avg > 0 → Bullish, avg < 0 → Bearish, avg = 0 ou pas de données → Neutral
     let bias = 0;
-    if      (avg > 0 && bullishPct > 50) bias = 1;
-    else if (avg < 0 && bullishPct < 50) bias = -1;
-    // Cas où avg et bullishPct divergent légèrement : avg seul décide si fort
-    else if (avg > 0.15) bias = 1;
-    else if (avg < -0.15) bias = -1;
+    if      (avg > 0) bias = 1;
+    else if (avg < 0) bias = -1;
 
     return { month, avg: Math.round(avg * 100) / 100, bullishPct, bias, count: vals.length };
   });
