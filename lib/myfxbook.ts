@@ -1,5 +1,10 @@
 // Shared MyFXBook Community Outlook logic
-// Cache module-level partagé entre retail-sentiment et signal-analysis
+// Cache module-level + Redis partagé entre toutes les routes serverless
+
+import { kv } from "@/lib/redis";
+
+const REDIS_KEY = "mfxbook:sentiment";
+const REDIS_TTL = 15 * 60; // 15 minutes en secondes
 
 export const MFX_PAIR_MAP: Record<string, string> = {
   EURUSD:"EUR/USD", GBPUSD:"GBP/USD", USDJPY:"USD/JPY", USDCHF:"USD/CHF",
@@ -60,10 +65,20 @@ function parseSymbols(symbols: unknown): Record<string, number> {
   return result;
 }
 
-// ── Fetch principal : auth → API public → scrape HTML ────────────────────────
+// ── Fetch principal : Redis → auth → API public → scrape HTML ────────────────
 // Retourne Record<pair, longPct> ex: { "EUR/USD": 23, "GBP/USD": 43, ... }
 export async function fetchMyfxbookMap(): Promise<Record<string, number>> {
+  // Cache module-level (warm instance)
   if (mapCache && Date.now() - mapCache.ts < MAP_TTL) return mapCache.data;
+
+  // Cache Redis partagé (survit aux nouvelles invocations serverless)
+  try {
+    const cached = await kv.get<Record<string, number>>(REDIS_KEY);
+    if (cached && Object.keys(cached).length > 0) {
+      mapCache = { data: cached, ts: Date.now() };
+      return cached;
+    }
+  } catch { /* Redis indisponible → continuer */ }
 
   // Tentative 1 : Auth avec credentials
   try {
@@ -78,6 +93,7 @@ export async function fetchMyfxbookMap(): Promise<Record<string, number>> {
         const result = parseSymbols(data.symbols);
         if (Object.keys(result).length > 0) {
           mapCache = { data: result, ts: Date.now() };
+          kv.set(REDIS_KEY, result, { ex: REDIS_TTL }).catch(() => {});
           return result;
         }
       }
@@ -101,6 +117,7 @@ export async function fetchMyfxbookMap(): Promise<Record<string, number>> {
         const result = parseSymbols(apiData.symbols);
         if (Object.keys(result).length > 0) {
           mapCache = { data: result, ts: Date.now() };
+          kv.set(REDIS_KEY, result, { ex: REDIS_TTL }).catch(() => {});
           return result;
         }
       }
@@ -138,6 +155,7 @@ export async function fetchMyfxbookMap(): Promise<Record<string, number>> {
           const result = parseSymbols(arr);
           if (Object.keys(result).length > 0) {
             mapCache = { data: result, ts: Date.now() };
+            kv.set(REDIS_KEY, result, { ex: REDIS_TTL }).catch(() => {});
             return result;
           }
         } catch { continue; }
@@ -166,6 +184,7 @@ export async function fetchMyfxbookMap(): Promise<Record<string, number>> {
       }
       if (Object.keys(result).length > 0) {
         mapCache = { data: result, ts: Date.now() };
+        kv.set(REDIS_KEY, result, { ex: REDIS_TTL }).catch(() => {});
         return result;
       }
     }
@@ -176,5 +195,8 @@ export async function fetchMyfxbookMap(): Promise<Record<string, number>> {
 
 // Force invalidation du cache (utile depuis retail-sentiment après un fetch réussi)
 export function setMyfxbookCache(data: Record<string, number>): void {
-  if (Object.keys(data).length > 0) mapCache = { data, ts: Date.now() };
+  if (Object.keys(data).length > 0) {
+    mapCache = { data, ts: Date.now() };
+    kv.set(REDIS_KEY, data, { ex: REDIS_TTL }).catch(() => {});
+  }
 }
