@@ -141,10 +141,10 @@ export function computeRangeStats(rows: YearlyRow[], from: number, to: number): 
     const bullishPct = Math.round((vals.filter(v => v > 0).length / vals.length) * 100);
 
     let bias = 0;
-    if      (avg > 0.05 && bullishPct >= 55) bias = 1;
-    else if (avg < -0.05 && bullishPct <= 45) bias = -1;
-    else if (avg > 0.20) bias = 1;
-    else if (avg < -0.20) bias = -1;
+    if      (avg > 0.02 && bullishPct >= 55) bias = 1;
+    else if (avg < -0.02 && bullishPct <= 45) bias = -1;
+    else if (avg > 0.10) bias = 1;
+    else if (avg < -0.10) bias = -1;
 
     return { month, avg: Math.round(avg * 100) / 100, bullishPct, bias, count: vals.length };
   });

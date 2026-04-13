@@ -36,7 +36,7 @@ export async function GET(req: Request) {
   const pairsQ = url.searchParams.get("pairs");
   const pairs  = pairsQ ? pairsQ.split(",").map(p => p.trim()) : Object.keys(PAIR_TO_TAB);
 
-  if (isNaN(from) || isNaN(to) || from >= to || from < 1971 || to > new Date().getFullYear()) {
+  if (isNaN(from) || isNaN(to) || from >= to || from < 2015 || to > new Date().getFullYear()) {
     return NextResponse.json({ error: "Plage invalide. from ≥ 1971, from < to ≤ année courante" }, { status: 400 });
   }
 
