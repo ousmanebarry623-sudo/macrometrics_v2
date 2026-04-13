@@ -121,11 +121,11 @@ export async function POST(req: Request) {
         if (isNaN(num)) continue;
 
         // Match to known indicator
-        const field = INDICATOR_MAP[rawLabel]
-          ?? Object.keys(INDICATOR_MAP).find(k => rawLabel.includes(k) || k.includes(rawLabel))
-               .valueOf()
-               ? INDICATOR_MAP[Object.keys(INDICATOR_MAP).find(k => rawLabel.includes(k) || k.includes(rawLabel)) ?? ""]
-               : undefined;
+        let field = INDICATOR_MAP[rawLabel];
+        if (!field) {
+          const matchedKey = Object.keys(INDICATOR_MAP).find(k => rawLabel.includes(k) || k.includes(rawLabel));
+          if (matchedKey) field = INDICATOR_MAP[matchedKey];
+        }
 
         if (field && field !== "score" && field !== "trend" && field !== "source") {
           (parsed as Record<string, unknown>)[field] = num;
