@@ -3,7 +3,7 @@
 
 import { kv } from "@/lib/redis";
 
-const SEASONALITY_REDIS_KEY = "seasonality:all-pairs";
+const SEASONALITY_REDIS_KEY = "seasonality:all-pairs:v2";
 const SEASONALITY_REDIS_TTL = 30 * 60; // 30 minutes en secondes
 
 export const SHEET_ID  = "1hVlCN-fdH30zAVasyoEsUCkcGtyxzSPOxLaJQ3F01cY";
@@ -188,23 +188,39 @@ export async function fetchAllPairsSeasonality(): Promise<Record<string, { bias:
   }
 
   const entries = Object.entries(tabToPairs);
-  const fetched = await Promise.all(
-    entries.map(async ([tab, pairLabels]) => {
-      const rows = await fetchSheetRaw(tab);
-      if (!rows || rows.length === 0) {
-        return pairLabels.map(pair => ({ pair, bias: 0, trend: new Array(12).fill(0) }));
-      }
-      const { trend } = computeRangeStats(rows, 2015, toYear);
-      return pairLabels.map(pair => ({ pair, bias: trend[monthIdx], trend }));
-    })
-  );
+
+  // Limiter la concurrence à 5 pour éviter le rate-limiting Google Sheets
+  const CONCURRENCY = 5;
+  const fetched: { pair: string; bias: number; trend: number[] }[][] = [];
+  for (let i = 0; i < entries.length; i += CONCURRENCY) {
+    const batch = entries.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(
+      batch.map(async ([tab, pairLabels]) => {
+        const rows = await fetchSheetRaw(tab);
+        if (!rows || rows.length === 0) {
+          return pairLabels.map(pair => ({ pair, bias: 0, trend: new Array(12).fill(0) }));
+        }
+        const { trend } = computeRangeStats(rows, 2015, toYear);
+        return pairLabels.map(pair => ({ pair, bias: trend[monthIdx], trend }));
+      })
+    );
+    fetched.push(...results);
+  }
 
   const data: Record<string, { bias: number; trend: number[] }> = {};
   for (const group of fetched) {
     for (const { pair, bias, trend } of group) data[pair] = { bias, trend };
   }
 
+  // Ne sauvegarder en Redis que si les données sont suffisamment complètes (≥80% des tabs)
+  const totalTabs = entries.length;
+  const successfulTabs = fetched.filter(group =>
+    group.some(p => p.trend.some(v => v !== 0))
+  ).length;
+
   allPairsCacheStore = { data, ts: Date.now() };
-  kv.set(SEASONALITY_REDIS_KEY, data, { ex: SEASONALITY_REDIS_TTL }).catch(() => {});
+  if (successfulTabs >= Math.floor(totalTabs * 0.8)) {
+    kv.set(SEASONALITY_REDIS_KEY, data, { ex: SEASONALITY_REDIS_TTL }).catch(() => {});
+  }
   return data;
 }
