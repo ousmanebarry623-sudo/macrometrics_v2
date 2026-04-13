@@ -14,6 +14,7 @@ const NAV = [
   { label: "Saisonnalité G8", href: "/seasonality" },
   { label: "News",            href: "/news" },
   { label: "Méthodo",         href: "/methodology" },
+  { label: "Admin ⚙️",        href: "/admin/macro" },
 ];
 
 function getParis() {

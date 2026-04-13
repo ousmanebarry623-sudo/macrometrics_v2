@@ -37,31 +37,31 @@ export interface CentralBank {
   probability: { hike: number; hold: number; cut: number };
 }
 
-// ── G8 + G10 countries ────────────────────────────────────────────────────────
+// ── G8 + G10 countries — updated April 2025 ───────────────────────────────────
 export const MACRO_COUNTRIES: CountryMacro[] = [
-  { code:"US", country:"United States", flag:"🇺🇸", currency:"USD", rate:5.50, inflation:3.2, coreInflation:3.8, unemployment:3.9, gdpGrowth:2.1,  tradeBalance:-68.2, sentiment:79.2, debtToGdp:123.4, score:0, trend:"moderate", source:"fallback" },
-  { code:"EU", country:"Euro Area",     flag:"🇪🇺", currency:"EUR", rate:4.25, inflation:2.6, coreInflation:2.9, unemployment:6.2, gdpGrowth:0.4,  tradeBalance:15.2,  sentiment:95.5, debtToGdp:88.6,  score:0, trend:"moderate", source:"fallback" },
-  { code:"GB", country:"United Kingdom",flag:"🇬🇧", currency:"GBP", rate:5.25, inflation:3.4, coreInflation:4.2, unemployment:4.2, gdpGrowth:0.1,  tradeBalance:-14.5, sentiment:49.0, debtToGdp:98.2,  score:0, trend:"weak",     source:"fallback" },
-  { code:"JP", country:"Japan",         flag:"🇯🇵", currency:"JPY", rate:0.10, inflation:2.4, coreInflation:2.2, unemployment:2.4, gdpGrowth:0.4,  tradeBalance:-9.7,  sentiment:38.0, debtToGdp:261.3, score:0, trend:"weak",     source:"fallback" },
-  { code:"CA", country:"Canada",        flag:"🇨🇦", currency:"CAD", rate:4.75, inflation:2.9, coreInflation:3.1, unemployment:6.2, gdpGrowth:1.2,  tradeBalance:0.3,   sentiment:52.0, debtToGdp:106.4, score:0, trend:"moderate", source:"fallback" },
-  { code:"AU", country:"Australia",     flag:"🇦🇺", currency:"AUD", rate:4.35, inflation:3.6, coreInflation:3.9, unemployment:4.1, gdpGrowth:2.1,  tradeBalance:10.5,  sentiment:84.0, debtToGdp:55.3,  score:0, trend:"moderate", source:"fallback" },
-  { code:"NZ", country:"New Zealand",   flag:"🇳🇿", currency:"NZD", rate:5.50, inflation:4.7, coreInflation:3.3, unemployment:4.0, gdpGrowth:-0.3, tradeBalance:-0.8,  sentiment:95.0, debtToGdp:38.5,  score:0, trend:"risk",     source:"fallback" },
-  { code:"CH", country:"Switzerland",   flag:"🇨🇭", currency:"CHF", rate:1.50, inflation:1.3, coreInflation:1.1, unemployment:2.3, gdpGrowth:0.3,  tradeBalance:5.2,   sentiment:95.0, debtToGdp:40.9,  score:0, trend:"strong",   source:"fallback" },
-  { code:"CN", country:"China",         flag:"🇨🇳", currency:"CNY", rate:3.45, inflation:0.2, coreInflation:0.6, unemployment:5.1, gdpGrowth:5.2,  tradeBalance:75.3,  sentiment:null, debtToGdp:83.4,  score:0, trend:"moderate", source:"fallback" },
-  { code:"DE", country:"Germany",       flag:"🇩🇪", currency:"EUR", rate:4.25, inflation:2.5, coreInflation:3.0, unemployment:5.9, gdpGrowth:-0.2, tradeBalance:16.9,  sentiment:87.5, debtToGdp:64.3,  score:0, trend:"weak",     source:"fallback" },
-  { code:"FR", country:"France",        flag:"🇫🇷", currency:"EUR", rate:4.25, inflation:2.7, coreInflation:2.3, unemployment:7.3, gdpGrowth:0.7,  tradeBalance:-8.5,  sentiment:90.0, debtToGdp:111.9, score:0, trend:"weak",     source:"fallback" },
+  { code:"US", country:"United States", flag:"🇺🇸", currency:"USD", rate:3.75, inflation:3.3, coreInflation:3.8, unemployment:4.3, gdpGrowth:2.0,  tradeBalance:-57.35,sentiment:52.7, debtToGdp:123.0, score:0, trend:"moderate", source:"fallback" },
+  { code:"EU", country:"Euro Area",     flag:"🇪🇺", currency:"EUR", rate:2.15, inflation:2.5, coreInflation:2.4, unemployment:6.2, gdpGrowth:1.2,  tradeBalance:-1.87, sentiment:-16.3,debtToGdp:87.1,  score:0, trend:"moderate", source:"fallback" },
+  { code:"GB", country:"United Kingdom",flag:"🇬🇧", currency:"GBP", rate:4.50, inflation:2.6, coreInflation:3.5, unemployment:4.4, gdpGrowth:1.5,  tradeBalance:-14.5, sentiment:-19.0,debtToGdp:99.4,  score:0, trend:"moderate", source:"fallback" },
+  { code:"JP", country:"Japan",         flag:"🇯🇵", currency:"JPY", rate:0.50, inflation:3.6, coreInflation:2.9, unemployment:2.4, gdpGrowth:0.6,  tradeBalance:-9.7,  sentiment:35.8, debtToGdp:255.2, score:0, trend:"weak",     source:"fallback" },
+  { code:"CA", country:"Canada",        flag:"🇨🇦", currency:"CAD", rate:2.75, inflation:2.3, coreInflation:2.9, unemployment:6.7, gdpGrowth:1.5,  tradeBalance:-0.4,  sentiment:47.3, debtToGdp:105.0, score:0, trend:"moderate", source:"fallback" },
+  { code:"AU", country:"Australia",     flag:"🇦🇺", currency:"AUD", rate:4.10, inflation:2.4, coreInflation:2.7, unemployment:4.1, gdpGrowth:1.3,  tradeBalance:4.1,   sentiment:90.1, debtToGdp:55.3,  score:0, trend:"moderate", source:"fallback" },
+  { code:"NZ", country:"New Zealand",   flag:"🇳🇿", currency:"NZD", rate:3.75, inflation:2.2, coreInflation:2.9, unemployment:5.1, gdpGrowth:0.7,  tradeBalance:-0.6,  sentiment:98.1, debtToGdp:43.5,  score:0, trend:"moderate", source:"fallback" },
+  { code:"CH", country:"Switzerland",   flag:"🇨🇭", currency:"CHF", rate:0.25, inflation:0.3, coreInflation:0.9, unemployment:2.8, gdpGrowth:1.5,  tradeBalance:6.3,   sentiment:98.1, debtToGdp:39.6,  score:0, trend:"moderate", source:"fallback" },
+  { code:"CN", country:"China",         flag:"🇨🇳", currency:"CNY", rate:3.10, inflation:-0.1,coreInflation:0.5, unemployment:5.2, gdpGrowth:5.4,  tradeBalance:104.0, sentiment:null, debtToGdp:88.6,  score:0, trend:"moderate", source:"fallback" },
+  { code:"DE", country:"Germany",       flag:"🇩🇪", currency:"EUR", rate:2.15, inflation:2.2, coreInflation:2.6, unemployment:6.3, gdpGrowth:0.0,  tradeBalance:17.7,  sentiment:86.7, debtToGdp:62.9,  score:0, trend:"weak",     source:"fallback" },
+  { code:"FR", country:"France",        flag:"🇫🇷", currency:"EUR", rate:2.15, inflation:0.8, coreInflation:1.7, unemployment:7.3, gdpGrowth:1.1,  tradeBalance:-6.2,  sentiment:88.0, debtToGdp:113.0, score:0, trend:"weak",     source:"fallback" },
 ];
 
-// ── Central banks ─────────────────────────────────────────────────────────────
+// ── Central banks — updated April 2026 ────────────────────────────────────────
 export const CENTRAL_BANKS_FALLBACK: CentralBank[] = [
-  { name:"Fed (FOMC)",  country:"United States", flag:"🇺🇸", currency:"USD", currentRate:5.50, lastChange:"2023-07-26", nextMeeting:"2025-05-07", forecast:5.25, bias:"neutral",  probability:{ hike:5,  hold:60, cut:35 } },
-  { name:"BCE (ECB)",   country:"Euro Area",     flag:"🇪🇺", currency:"EUR", currentRate:4.25, lastChange:"2024-09-12", nextMeeting:"2025-04-17", forecast:3.65, bias:"dovish",   probability:{ hike:5,  hold:35, cut:60 } },
-  { name:"BoE",         country:"United Kingdom",flag:"🇬🇧", currency:"GBP", currentRate:5.25, lastChange:"2024-08-01", nextMeeting:"2025-05-08", forecast:4.75, bias:"dovish",   probability:{ hike:5,  hold:40, cut:55 } },
-  { name:"BoJ",         country:"Japan",         flag:"🇯🇵", currency:"JPY", currentRate:0.10, lastChange:"2024-03-19", nextMeeting:"2025-05-01", forecast:0.25, bias:"hawkish",  probability:{ hike:45, hold:45, cut:10 } },
-  { name:"BoC",         country:"Canada",        flag:"🇨🇦", currency:"CAD", currentRate:4.75, lastChange:"2024-10-23", nextMeeting:"2025-04-16", forecast:3.75, bias:"dovish",   probability:{ hike:5,  hold:30, cut:65 } },
-  { name:"RBA",         country:"Australia",     flag:"🇦🇺", currency:"AUD", currentRate:4.35, lastChange:"2023-11-07", nextMeeting:"2025-05-20", forecast:4.10, bias:"neutral",  probability:{ hike:10, hold:60, cut:30 } },
-  { name:"RBNZ",        country:"New Zealand",   flag:"🇳🇿", currency:"NZD", currentRate:5.50, lastChange:"2023-05-24", nextMeeting:"2025-05-28", forecast:5.25, bias:"dovish",   probability:{ hike:5,  hold:35, cut:60 } },
-  { name:"SNB",         country:"Switzerland",   flag:"🇨🇭", currency:"CHF", currentRate:1.50, lastChange:"2024-03-21", nextMeeting:"2025-06-19", forecast:1.25, bias:"dovish",   probability:{ hike:5,  hold:40, cut:55 } },
+  { name:"Fed (FOMC)",  country:"United States", flag:"🇺🇸", currency:"USD", currentRate:3.75, lastChange:"2025-12-18", nextMeeting:"2026-05-06", forecast:3.50, bias:"dovish",   probability:{ hike:5,  hold:55, cut:40 } },
+  { name:"BCE (ECB)",   country:"Euro Area",     flag:"🇪🇺", currency:"EUR", currentRate:2.15, lastChange:"2026-03-06", nextMeeting:"2026-04-17", forecast:2.00, bias:"dovish",   probability:{ hike:5,  hold:50, cut:45 } },
+  { name:"BoE",         country:"United Kingdom",flag:"🇬🇧", currency:"GBP", currentRate:4.50, lastChange:"2026-02-06", nextMeeting:"2026-05-08", forecast:4.25, bias:"dovish",   probability:{ hike:5,  hold:45, cut:50 } },
+  { name:"BoJ",         country:"Japan",         flag:"🇯🇵", currency:"JPY", currentRate:0.50, lastChange:"2025-03-19", nextMeeting:"2026-05-01", forecast:0.75, bias:"hawkish",  probability:{ hike:35, hold:50, cut:15 } },
+  { name:"BoC",         country:"Canada",        flag:"🇨🇦", currency:"CAD", currentRate:2.75, lastChange:"2026-03-12", nextMeeting:"2026-04-16", forecast:2.50, bias:"dovish",   probability:{ hike:5,  hold:50, cut:45 } },
+  { name:"RBA",         country:"Australia",     flag:"🇦🇺", currency:"AUD", currentRate:4.10, lastChange:"2026-02-18", nextMeeting:"2026-05-20", forecast:3.85, bias:"dovish",   probability:{ hike:5,  hold:55, cut:40 } },
+  { name:"RBNZ",        country:"New Zealand",   flag:"🇳🇿", currency:"NZD", currentRate:3.75, lastChange:"2026-02-19", nextMeeting:"2026-05-28", forecast:3.50, bias:"dovish",   probability:{ hike:5,  hold:50, cut:45 } },
+  { name:"SNB",         country:"Switzerland",   flag:"🇨🇭", currency:"CHF", currentRate:0.25, lastChange:"2026-03-20", nextMeeting:"2026-06-18", forecast:0.00, bias:"dovish",   probability:{ hike:5,  hold:55, cut:40 } },
 ];
 
 // ── Macro score computation ───────────────────────────────────────────────────
@@ -170,6 +170,9 @@ export function setMacroCache(data: CountryMacro[]) {
   macroCache = { data, ts: Date.now() };
 }
 
+// ── Redis override key prefix ─────────────────────────────────────────────────
+export const REDIS_MACRO_KEY = "macro:override:v1";
+
 // ── Fetch from TradingEconomics ───────────────────────────────────────────────
 const TE_COUNTRY_MAP: Record<string, string> = {
   US: "united%20states", EU: "euro%20area", GB: "united%20kingdom",
@@ -241,8 +244,20 @@ export async function fetchAllMacroData(): Promise<CountryMacro[]> {
 
   let data = MACRO_COUNTRIES.map(c => ({ ...c }));
 
+  // ── 1. Redis manual overrides (highest priority) ───────────────────────────
+  try {
+    const { kv } = await import("@/lib/redis");
+    const overrides = await kv.get<Record<string, Partial<CountryMacro>>>(REDIS_MACRO_KEY);
+    if (overrides) {
+      data = data.map(c => {
+        const ov = overrides[c.code];
+        return ov ? { ...c, ...ov, source: "live" as const } : c;
+      });
+    }
+  } catch { /* Redis not available */ }
+
+  // ── 2. TradingEconomics live API (if key configured & no Redis override) ───
   if (apiKey) {
-    // Fetch all countries in parallel (with rate limit protection)
     const liveResults = await Promise.allSettled(
       data.map(c => fetchTECountry(c.code))
     );
@@ -255,7 +270,7 @@ export async function fetchAllMacroData(): Promise<CountryMacro[]> {
     });
   }
 
-  // Compute scores
+  // ── 3. Compute scores ──────────────────────────────────────────────────────
   data = data.map(c => ({
     ...c,
     score: computeMacroScore(c),
