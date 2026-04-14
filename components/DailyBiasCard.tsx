@@ -53,24 +53,38 @@ function determineBias(p: PairSignal): BiasType {
   return "NEUTRE";
 }
 
-// Score confiance adapté : pénalise les signaux splits
+// Score confiance — formule granulaire 4 composantes (max 100)
 function computeConfidence(p: PairSignal): number {
-  const ws = Math.abs(weightedScore(p));
   const biases = [p.institutional.bias, p.fundamental.bias, p.sentiment.bias, p.seasonality.bias];
   const bulls  = biases.filter(b => b === "Bullish").length;
   const bears  = biases.filter(b => b === "Bearish").length;
 
-  // Forte pénalité si split parfait (ex: 2 bull + 2 bear)
+  // Split parfait → signal non exploitable, plafonné à 35
   if (bulls > 0 && bears > 0 && bulls === bears) {
-    return Math.min(48, Math.round(p.quality * 0.45));
+    const cotZ = Math.min(15, Math.round(Math.abs(p.institutional.base.zScore ?? 0) * 5));
+    return Math.max(10, Math.min(35, Math.round(p.quality * 0.25 + cotZ)));
   }
 
-  // Score basé sur : qualité du signal × alignement pondéré × force COT
-  const alignmentBoost = ws * 30; // max +30 si score pondéré = 1.0
-  const cotBoost = p.institutional.bias !== "Neutral"
-    ? p.institutional.base.strengthPct * 0.08 : 0;
+  // 1. Alignement directionnel (0–40 pts) : ratio signaux concordants
+  const totalSig  = bulls + bears;
+  const dominant  = Math.max(bulls, bears);
+  const alignScore = totalSig > 0 ? Math.round((dominant / totalSig) * 40) : 0;
 
-  return Math.min(100, Math.round(p.quality * 0.6 + alignmentBoost + cotBoost));
+  // 2. Force COT institutionnelle via z-score CFTC (0–30 pts) — source la plus objective
+  const cotZ     = Math.abs(p.institutional.base.zScore ?? 0);
+  const cotScore = Math.min(30, Math.round(cotZ * 9));
+
+  // 3. Magnitude des surprises macro TradingView (0–15 pts)
+  const macroScore = Math.min(15, Math.round(Math.abs(p.fundamental.netScore) * 4));
+
+  // 4. Extrémité du sentiment retail MyFXBook (0–10 pts) — signal contrarian
+  const sentExt  = Math.abs(p.sentiment.longPct - 50);
+  const sentScore = Math.min(10, Math.round(sentExt * 0.22));
+
+  // 5. Saisonnalité historique alignée (0–5 pts)
+  const seasScore = p.seasonality.bias !== "Neutral" ? 5 : 0;
+
+  return Math.min(100, alignScore + cotScore + macroScore + sentScore + seasScore);
 }
 
 function buildArgs(p: PairSignal): string[] {
@@ -263,6 +277,48 @@ export default function DailyBiasCard() {
           <button onClick={fetchData} title="Actualiser" style={{ background: "none", border: "1px solid #1c1c38", borderRadius: 6, color: "#475569", cursor: "pointer", padding: "3px 7px", fontSize: 12 }}>⟳</button>
         </div>
       </div>
+
+      {/* Top paires du jour */}
+      {allData.length > 0 && (() => {
+        const top3 = allData
+          .filter(d => d.signal !== "NEUTRAL")
+          .map(d => ({ ...d, confScore: computeConfidence(d), biasFull: determineBias(d) }))
+          .sort((a, b) => b.confScore - a.confScore)
+          .slice(0, 3);
+        if (!top3.length) return null;
+        return (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 7 }}>
+              🏆 Meilleures paires du jour
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {top3.map((d, i) => {
+                const cfg = BIAS_CFG[d.biasFull];
+                return (
+                  <button key={d.pair} onClick={() => setSelected(d.pair)} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    background: selected === d.pair ? `${cfg.color}12` : "#0d0d1a",
+                    border: `1px solid ${selected === d.pair ? cfg.color + "40" : "#1c1c38"}`,
+                    borderRadius: 7, padding: "7px 10px", cursor: "pointer", textAlign: "left",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#334155", fontFamily: "JetBrains Mono, monospace" }}>#{i + 1}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9" }}>{d.pair}</span>
+                      <span style={{ fontSize: 9, color: "#475569" }}>{d.category}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: cfg.color, background: `${cfg.color}15`, borderRadius: 4, padding: "2px 6px" }}>
+                        {cfg.arrow} {d.biasFull}
+                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 900, color: SCORE_COLOR(d.confScore), fontFamily: "JetBrains Mono, monospace" }}>{d.confScore}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Pair selector */}
       <select value={selected} onChange={e => setSelected(e.target.value)} style={{
