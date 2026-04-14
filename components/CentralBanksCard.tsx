@@ -65,8 +65,9 @@ export default function CentralBanksCard() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px,1fr))", gap: 10 }}>
           {banks.map(b => {
             const bc = BIAS_CFG[b.bias];
-            const rateDir = b.forecast != null && b.forecast > b.currentRate ? "▲" : b.forecast != null && b.forecast < b.currentRate ? "▼" : "—";
-            const rateDirColor = b.forecast != null && b.forecast > b.currentRate ? "#22c55e" : b.forecast != null && b.forecast < b.currentRate ? "#ef4444" : "#94a3b8";
+            const forecast = b.forecast ?? b.currentRate;
+            const rateDir = forecast > b.currentRate ? "▲" : forecast < b.currentRate ? "▼" : "—";
+            const rateDirColor = forecast > b.currentRate ? "#22c55e" : forecast < b.currentRate ? "#ef4444" : "#94a3b8";
             const meetingStr = new Date(b.nextMeeting).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
             const countdown = daysUntil(b.nextMeeting);
             const dominant = b.probability.hike >= b.probability.cut
