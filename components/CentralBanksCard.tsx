@@ -110,7 +110,7 @@ export default function CentralBanksCard() {
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontSize: 9, color: "#475569", marginBottom: 2 }}>Prévision</div>
                     <div style={{ fontSize: 16, fontWeight: 700, color: rateDirColor, fontFamily: "JetBrains Mono, monospace" }}>
-                      {rateDir} {b.forecast.toFixed(2)}%
+                      {rateDir} {b.forecast != null ? b.forecast.toFixed(2) : "—"}%
                     </div>
                   </div>
                 </div>
