@@ -8,6 +8,7 @@ import SeasonalityG8 from "@/components/SeasonalityG8";
 import FundamentalFeed from "@/components/FundamentalFeed";
 import OpenInterestCard from "@/components/OpenInterestCard";
 import DailyBiasCard from "@/components/DailyBiasCard";
+import CentralBanksCard from "@/components/CentralBanksCard";
 
 export default function HomePage() {
   const parisDate = new Date().toLocaleDateString("fr-FR", {
@@ -49,6 +50,11 @@ export default function HomePage() {
       {/* Row 2: COT Chart full width */}
       <div style={{ marginBottom: 16 }}>
         <COTChartCard />
+      </div>
+
+      {/* Row: Central Banks G8 */}
+      <div style={{ marginBottom: 16 }}>
+        <CentralBanksCard />
       </div>
 
       {/* Row 3: Retail Sentiment full width */}
