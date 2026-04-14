@@ -54,14 +54,14 @@ export const MACRO_COUNTRIES: CountryMacro[] = [
 
 // ── Central banks — updated April 2026 ────────────────────────────────────────
 export const CENTRAL_BANKS_FALLBACK: CentralBank[] = [
-  { name:"Fed (FOMC)",  country:"United States", flag:"🇺🇸", currency:"USD", currentRate:3.75, lastChange:"2026-03-18", nextMeeting:"2026-04-29", forecast:3.50, bias:"dovish",   probability:{ hike:5,  hold:55, cut:40 } },
-  { name:"BCE (ECB)",   country:"Euro Area",     flag:"🇪🇺", currency:"EUR", currentRate:2.15, lastChange:"2026-03-19", nextMeeting:"2026-04-30", forecast:2.00, bias:"dovish",   probability:{ hike:5,  hold:50, cut:45 } },
-  { name:"BoE",         country:"United Kingdom",flag:"🇬🇧", currency:"GBP", currentRate:3.75, lastChange:"2026-03-19", nextMeeting:"2026-04-30", forecast:3.50, bias:"dovish",   probability:{ hike:5,  hold:45, cut:50 } },
-  { name:"BoJ",         country:"Japan",         flag:"🇯🇵", currency:"JPY", currentRate:0.50, lastChange:"2026-03-19", nextMeeting:"2026-04-28", forecast:0.75, bias:"hawkish",  probability:{ hike:35, hold:50, cut:15 } },
-  { name:"BoC",         country:"Canada",        flag:"🇨🇦", currency:"CAD", currentRate:2.25, lastChange:"2026-03-18", nextMeeting:"2026-04-29", forecast:2.00, bias:"dovish",   probability:{ hike:5,  hold:50, cut:45 } },
-  { name:"RBA",         country:"Australia",     flag:"🇦🇺", currency:"AUD", currentRate:4.10, lastChange:"2026-03-17", nextMeeting:"2026-05-05", forecast:3.85, bias:"dovish",   probability:{ hike:5,  hold:55, cut:40 } },
-  { name:"RBNZ",        country:"New Zealand",   flag:"🇳🇿", currency:"NZD", currentRate:2.25, lastChange:"2026-04-08", nextMeeting:"2026-05-27", forecast:2.00, bias:"dovish",   probability:{ hike:5,  hold:50, cut:45 } },
-  { name:"SNB",         country:"Switzerland",   flag:"🇨🇭", currency:"CHF", currentRate:0.00, lastChange:"2026-03-19", nextMeeting:"2026-06-18", forecast:0.00, bias:"dovish",   probability:{ hike:5,  hold:55, cut:40 } },
+  { name:"Fed (FOMC)",  country:"United States", flag:"🇺🇸", currency:"USD", currentRate:3.75, lastChange:"2026-03-18", nextMeeting:"2026-04-29", forecast:3.50, bias:"dovish",   probability:{ hike:0,  hold:95, cut:5  } },
+  { name:"BCE (ECB)",   country:"Euro Area",     flag:"🇪🇺", currency:"EUR", currentRate:2.15, lastChange:"2026-03-19", nextMeeting:"2026-04-30", forecast:2.40, bias:"hawkish",  probability:{ hike:26, hold:72, cut:2  } },
+  { name:"BoE",         country:"United Kingdom",flag:"🇬🇧", currency:"GBP", currentRate:3.75, lastChange:"2026-03-19", nextMeeting:"2026-04-30", forecast:3.75, bias:"neutral",  probability:{ hike:10, hold:87, cut:3  } },
+  { name:"BoJ",         country:"Japan",         flag:"🇯🇵", currency:"JPY", currentRate:0.50, lastChange:"2026-03-19", nextMeeting:"2026-04-28", forecast:0.75, bias:"hawkish",  probability:{ hike:18, hold:80, cut:2  } },
+  { name:"BoC",         country:"Canada",        flag:"🇨🇦", currency:"CAD", currentRate:2.25, lastChange:"2026-03-18", nextMeeting:"2026-04-29", forecast:2.25, bias:"neutral",  probability:{ hike:0,  hold:93, cut:7  } },
+  { name:"RBA",         country:"Australia",     flag:"🇦🇺", currency:"AUD", currentRate:4.10, lastChange:"2026-03-17", nextMeeting:"2026-05-05", forecast:4.35, bias:"hawkish",  probability:{ hike:62, hold:35, cut:3  } },
+  { name:"RBNZ",        country:"New Zealand",   flag:"🇳🇿", currency:"NZD", currentRate:2.25, lastChange:"2026-04-08", nextMeeting:"2026-05-27", forecast:2.50, bias:"hawkish",  probability:{ hike:52, hold:45, cut:3  } },
+  { name:"SNB",         country:"Switzerland",   flag:"🇨🇭", currency:"CHF", currentRate:0.00, lastChange:"2026-03-19", nextMeeting:"2026-06-18", forecast:0.00, bias:"neutral",  probability:{ hike:3,  hold:80, cut:17 } },
 ];
 
 // ── Macro score computation ───────────────────────────────────────────────────
