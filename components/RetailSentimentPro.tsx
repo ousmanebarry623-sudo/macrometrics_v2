@@ -467,8 +467,8 @@ function ChartView({ data }: { data: EnhancedSentiment[] }) {
                   <Tooltip
                     contentStyle={{ background: "#10101e", border: "1px solid #1c1c38", borderRadius: 8, fontSize: 11 }}
                     labelStyle={{ color: "#94a3b8", marginBottom: 4 }}
-                    formatter={(val: number, name: string) => [
-                      name === "sentiment" ? `${val}%` : val.toFixed(row.price && row.price > 10 ? 2 : 4),
+                    formatter={(val, name) => [
+                      name === "sentiment" ? `${val}%` : Number(val).toFixed(row.price && row.price > 10 ? 2 : 4),
                       name === "sentiment" ? "Long %" : "Prix",
                     ]}
                   />
