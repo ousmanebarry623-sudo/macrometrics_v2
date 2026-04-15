@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import type { PairSignal } from "@/app/api/signal-analysis/route";
 import InfoTooltip from "@/components/InfoTooltip";
+import { useBreakpoint } from "@/lib/use-breakpoint";
 
 interface NewsArticle {
   title:   string;
@@ -167,16 +168,18 @@ function CurrencyBadge({ cur }: { cur: string }) {
 // ── Detail panel ──────────────────────────────────────────────────────────────
 function DetailPanel({ p, onClose, seasonData, seasonLabel, news }: { p: PairSignal; onClose: () => void; seasonData: Record<string, number[]> | null; seasonLabel: string; news: NewsArticle[] }) {
   const sig = SIGNAL_CFG[p.signal];
+  const { isMobile } = useBreakpoint();
   return (
     <div style={{
       position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.7)",
       display:"flex", alignItems:"center", justifyContent:"center",
+      padding: isMobile ? "16px" : 0,
     }} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{
         background:"#0d0d1a", border:"1px solid #1c1c38", borderRadius:14,
-        width:660, maxHeight:"85vh", overflowY:"auto",
+        width: isMobile ? "100%" : 660, maxHeight:"90vh", overflowY:"auto",
         boxShadow:"0 24px 80px rgba(0,0,0,0.8)",
-      }}>
+      }} suppressHydrationWarning>
         {/* Header */}
         <div style={{ padding:"16px 20px", borderBottom:"1px solid #1c1c38", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -421,6 +424,7 @@ function DetailPanel({ p, onClose, seasonData, seasonLabel, news }: { p: PairSig
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function AnalysisPage() {
+  const { isMobile } = useBreakpoint();
   const [data,     setData]     = useState<PairSignal[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState("");
@@ -675,7 +679,8 @@ export default function AnalysisPage() {
 
         {/* Table */}
         {filtered.length > 0 && (
-          <div style={{ background:"#10101e", border:"1px solid #1c1c38", borderRadius:12, overflow:"hidden" }}>
+          <div style={{ overflowX: isMobile ? "auto" : "visible", WebkitOverflowScrolling: "touch" }} suppressHydrationWarning>
+          <div style={{ background:"#10101e", border:"1px solid #1c1c38", borderRadius:12, overflow:"hidden", minWidth: isMobile ? 960 : "auto" }} suppressHydrationWarning>
             {/* Column headers */}
             <div style={{
               display:"grid", gridTemplateColumns:"160px 130px 90px 150px 140px 140px 120px 70px",
@@ -809,6 +814,7 @@ export default function AnalysisPage() {
                 </div>
               );
             })}
+          </div>
           </div>
         )}
 

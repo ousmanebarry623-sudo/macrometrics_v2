@@ -8,6 +8,7 @@ import type { DashMetrics } from "@/components/ElteSmartDashboard";
 import type { TelegramSignalData, ServerWatchSymbol } from "@/components/TelegramPanel";
 import SignalMonitorPanel from "@/components/SignalMonitorPanel";
 import LivePriceTicker from "@/components/LivePriceTicker";
+import { useBreakpoint } from "@/lib/use-breakpoint";
 
 // ─── LAZY LOADS ───────────────────────────────────────────────────────────────
 const SignalChart = dynamic(() => import("@/components/SignalChart"), {
@@ -78,6 +79,7 @@ export default function SignalPage() {
   const metricsRef = useRef<DashMetrics | null>(null);
   const sigDataRef = useRef<{ sig: Signal; params: ElteParams } | null>(null);
 
+  const { isMobile } = useBreakpoint();
   const sym = TV_SYMBOLS[symIdx];
   const tf  = SIGNAL_TFS[tfIdx];
 
@@ -273,7 +275,7 @@ export default function SignalPage() {
       </div>
 
       {/* ── Zone principale : Chart + Dashboard ─────────────────────────── */}
-      <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+      <div style={{ display:"flex", flexDirection: isMobile ? "column" : "row", gap:10, alignItems:"flex-start" }} suppressHydrationWarning>
         <SignalChart
           key={`${sym.yf}-${tf.yfInterval}-${tf.yfRange}`}
           yfSymbol={sym.yf}

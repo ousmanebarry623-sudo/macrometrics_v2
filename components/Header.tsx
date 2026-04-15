@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useBreakpoint } from "@/lib/use-breakpoint";
 
 const NAV = [
   { label: "Dashboard",       href: "/" },
@@ -50,6 +51,7 @@ function ParisClock() {
 export default function Header() {
   const [open, setOpen] = useState(false);
   const path = usePathname();
+  const { isMobile } = useBreakpoint();
 
   return (
     <header style={{ background: "rgba(6,6,16,0.97)", backdropFilter: "blur(16px)", borderBottom: "1px solid #1c1c38", position: "sticky", top: 0, zIndex: 50 }}>
@@ -62,13 +64,15 @@ export default function Header() {
           </div>
         </Link>
 
-        <nav style={{ display: "flex", gap: 2 }} className="hidden md:flex">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href} style={{ padding: "5px 12px", borderRadius: 7, fontSize: 13, fontWeight: 500, textDecoration: "none", color: path === n.href ? "#f0c84a" : "#94a3b8", background: path === n.href ? "rgba(212,175,55,0.1)" : "transparent", border: `1px solid ${path === n.href ? "rgba(212,175,55,0.25)" : "transparent"}` }}>
-              {n.label}
-            </Link>
-          ))}
-        </nav>
+        {!isMobile && (
+          <nav style={{ display: "flex", gap: 2 }} suppressHydrationWarning>
+            {NAV.map((n) => (
+              <Link key={n.href} href={n.href} style={{ padding: "5px 12px", borderRadius: 7, fontSize: 13, fontWeight: 500, textDecoration: "none", color: path === n.href ? "#f0c84a" : "#94a3b8", background: path === n.href ? "rgba(212,175,55,0.1)" : "transparent", border: `1px solid ${path === n.href ? "rgba(212,175,55,0.25)" : "transparent"}` }}>
+                {n.label}
+              </Link>
+            ))}
+          </nav>
+        )}
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <ParisClock />
@@ -76,14 +80,16 @@ export default function Header() {
             <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#22c55e" }} className="blink" />
             LIVE
           </div>
-          <button onClick={() => setOpen(!open)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }} className="md:hidden">
-            <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" strokeWidth={2} strokeLinecap="round" d={open ? "M6 6l12 12M6 18L18 6" : "M4 6h16M4 12h16M4 18h16"} /></svg>
-          </button>
+          {isMobile && (
+            <button onClick={() => setOpen(!open)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }} suppressHydrationWarning>
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" strokeWidth={2} strokeLinecap="round" d={open ? "M6 6l12 12M6 18L18 6" : "M4 6h16M4 12h16M4 18h16"} /></svg>
+            </button>
+          )}
         </div>
       </div>
 
-      {open && (
-        <div style={{ borderTop: "1px solid #1c1c38", background: "#060610", padding: "10px 20px" }} className="md:hidden">
+      {isMobile && open && (
+        <div style={{ borderTop: "1px solid #1c1c38", background: "#060610", padding: "10px 20px" }} suppressHydrationWarning>
           {NAV.map((n) => (
             <Link key={n.href} href={n.href} onClick={() => setOpen(false)} style={{ display: "block", padding: "9px 10px", borderRadius: 7, fontSize: 13, fontWeight: 500, textDecoration: "none", color: path === n.href ? "#f0c84a" : "#94a3b8", marginBottom: 3 }}>
               {n.label}
