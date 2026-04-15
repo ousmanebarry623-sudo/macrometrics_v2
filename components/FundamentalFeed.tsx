@@ -34,9 +34,15 @@ export default function FundamentalFeed({ limit }: { limit?: number }) {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    fetch("/api/news").then(r => r.json())
-      .then(d => { setArticles(d); setLoading(false); })
-      .catch(() => setLoading(false));
+    const fetchNews = () => {
+      fetch("/api/news").then(r => r.json())
+        .then(d => { setArticles(d); setLoading(false); })
+        .catch(() => setLoading(false));
+    };
+    fetchNews();
+    // Refetch every 10 minutes for real-time updates
+    const interval = setInterval(fetchNews, 10 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   // Reset to page 1 when filter changes

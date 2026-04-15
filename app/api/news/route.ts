@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+export const revalidate = 600; // Revalidate every 10 min
 
 interface Article {
   title: string;
@@ -78,42 +79,42 @@ async function parseRSS(url: string, source: string, category: string, limit = 8
 
 export async function GET() {
   try {
-    // Sources fiables depuis les IPs Vercel
-    // FXStreet direct bloqué → proxy Google News | Reuters déprécié → Google News Markets
+    // Sources fiables depuis les IPs Vercel avec paramètres pour articles RÉCENTS
+    // Google News : `when=24h` force articles < 24h | ForexLive & Investing : direct RSS
     const feeds = await Promise.allSettled([
-      // ── ForexLive — fiable depuis Vercel ─────────────────────────────────
+      // ── ForexLive — fiable, articles récents ──────────────────────────────
       parseRSS(
         "https://www.forexlive.com/feed/news",
         "ForexLive", "Forex", 12
       ),
-      // ── FXStreet — direct bloqué, proxy Google News ───────────────────────
+      // ── FXStreet via Google News 24h (articles < 24h) ──────────────────────
       parseRSS(
-        "https://news.google.com/rss/search?q=fxstreet+forex+currency+analysis&hl=en&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=fxstreet+forex+currency+analysis&ceid=US:en&when=24h",
         "FXStreet", "Forex", 10
       ),
-      // ── InvestingLive — essai direct Investing.com ────────────────────────
+      // ── InvestingLive — direct Investing.com RSS (temps réel) ──────────────
       parseRSS(
         "https://www.investing.com/rss/news_285.rss",
+        "InvestingLive", "Forex", 12
+      ),
+      // ── InvestingLive fallback — Google News 24h ──────────────────────────
+      parseRSS(
+        "https://news.google.com/rss/search?q=investing+forex+currency+economic+trading&ceid=US:en&when=24h",
         "InvestingLive", "Forex", 10
       ),
-      // ── InvestingLive fallback — Google News si investing.com bloqué ──────
+      // ── Markets — Google News macro/banques centrales 24h ──────────────────
       parseRSS(
-        "https://news.google.com/rss/search?q=investing+forex+currency+economic+analysis&hl=en&gl=US&ceid=US:en",
-        "InvestingLive", "Forex", 10
-      ),
-      // ── Markets — Google News macro/banques centrales ─────────────────────
-      parseRSS(
-        "https://news.google.com/rss/search?q=forex+market+economy+Fed+ECB+interest+rates+inflation&hl=en&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=forex+market+economy+Fed+ECB+interest+rates+inflation+currency&ceid=US:en&when=24h",
         "Google News", "Markets", 12
       ),
-      // ── Markets fallback — actualités macro supplémentaires ───────────────
+      // ── Markets fallback — banques centrales + politique monétaire 24h ─────
       parseRSS(
-        "https://news.google.com/rss/search?q=central+bank+monetary+policy+dollar+euro+yen&hl=en&gl=US&ceid=US:en",
-        "Google News", "Markets", 8
+        "https://news.google.com/rss/search?q=central+bank+monetary+policy+dollar+euro+yen+rates&ceid=US:en&when=24h",
+        "Google News", "Markets", 10
       ),
-      // ── Forex général ─────────────────────────────────────────────────────
+      // ── Forex général — paires majeures 24h ────────────────────────────────
       parseRSS(
-        "https://news.google.com/rss/search?q=EUR+USD+GBP+JPY+forex+currency+trading&hl=en&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=EUR+USD+GBP+JPY+forex+currency+trading+exchange&ceid=US:en&when=24h",
         "Google News", "Forex", 10
       ),
     ]);
