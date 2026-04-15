@@ -99,15 +99,10 @@ export async function GET() {
         "https://news.google.com/rss/search?q=fxstreet+forex+news+analysis&ceid=US:en&when=7d",
         "FXStreet", "Forex", 12
       ),
-      // ── InvestingLive — Benzinga Forex (fiable depuis Vercel) ─────────────
+      // ── DailyFX — source forex fiable ────────────────────────────────────
       parseRSS(
-        "https://www.benzinga.com/feed/?category=forex-news",
-        "InvestingLive", "Forex", 12
-      ),
-      // ── InvestingLive fallback — Investing.com RSS ─────────────────────────
-      parseRSS(
-        "https://www.investing.com/rss/news_285.rss",
-        "InvestingLive", "Forex", 10
+        "https://www.dailyfx.com/feeds/all",
+        "DailyFX", "Forex", 10
       ),
       // ── Markets — Google News macro économique (7j) ─────────────────────────
       parseRSS(

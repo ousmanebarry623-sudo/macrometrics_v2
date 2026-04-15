@@ -6,7 +6,6 @@ interface Article { title: string; link: string; pubDate: string; source: string
 const SOURCE_COLORS: Record<string, string> = {
   "FXStreet":    "#06b6d4",
   "ForexLive":   "#22c55e",
-  "InvestingLive": "#10b981",
   "DailyFX":     "#818cf8",
   "Google News": "#475569",
 };
@@ -58,7 +57,7 @@ export default function FundamentalFeed({ limit }: { limit?: number }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
         <div>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Analyse Fondamentale</h3>
-          <p style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>FXStreet · ForexLive · InvestingLive</p>
+          <p style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>FXStreet · ForexLive · Markets</p>
         </div>
         <span style={{ fontSize: 10, color: "#f97316", background: "rgba(249,115,22,0.1)", padding: "2px 8px", borderRadius: 999, border: "1px solid rgba(249,115,22,0.2)" }}>
           {pool.length} articles
@@ -75,7 +74,7 @@ export default function FundamentalFeed({ limit }: { limit?: number }) {
             {c}
           </button>
         ))}
-        {["FXStreet", "ForexLive", "InvestingLive"].map(s => (
+        {["FXStreet", "ForexLive"].map(s => (
           <button key={s} onClick={() => setCat(s)} style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 6, cursor: "pointer",
             background: cat === s ? ((SOURCE_COLORS[s] ?? "#475569") + "20") : "transparent",
             border: `1px solid ${cat === s ? ((SOURCE_COLORS[s] ?? "#475569") + "40") : "#1c1c38"}`,
