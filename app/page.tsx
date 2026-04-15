@@ -2,6 +2,7 @@ import G8Overview from "@/components/G8Overview";
 import QuickLinks from "@/components/QuickLinks";
 import COTChartCard from "@/components/COTChartCard";
 import RetailSentimentCard from "@/components/RetailSentimentCard";
+import RetailSentimentPro from "@/components/RetailSentimentPro";
 import SeasonalityG8 from "@/components/SeasonalityG8";
 import CentralBanksCard from "@/components/CentralBanksCard";
 import ResponsiveRow1 from "@/components/ResponsiveRow1";
@@ -49,9 +50,14 @@ export default function HomePage() {
         <CentralBanksCard />
       </div>
 
-      {/* Row 3: Retail Sentiment full width */}
+      {/* Row 3: Retail Sentiment (overview) */}
       <div style={{ marginBottom: 16 }}>
         <RetailSentimentCard />
+      </div>
+
+      {/* Row 3b: Retail Sentiment Pro — advanced analysis */}
+      <div style={{ marginBottom: 16 }}>
+        <RetailSentimentPro />
       </div>
 
       {/* Row 4: Seasonality G8 full width */}
