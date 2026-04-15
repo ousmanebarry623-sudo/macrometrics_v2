@@ -78,33 +78,43 @@ async function parseRSS(url: string, source: string, category: string, limit = 8
 
 export async function GET() {
   try {
-    // Sources Forex/marchés fiables depuis les IPs Vercel
-    // Ordre de priorité : Google News (très fiable), Reuters, ForexLive, DailyFX, FXStreet en dernier
+    // Sources fiables depuis les IPs Vercel
+    // FXStreet direct bloqué → proxy Google News | Reuters déprécié → Google News Markets
     const feeds = await Promise.allSettled([
-      parseRSS(
-        "https://news.google.com/rss/search?q=forex+currency+trading+market&hl=en&gl=US&ceid=US:en",
-        "Google News", "Forex", 12
-      ),
-      parseRSS(
-        "https://news.google.com/rss/search?q=EUR+USD+GBP+JPY+forex&hl=en&gl=US&ceid=US:en",
-        "Google News", "Forex", 10
-      ),
+      // ── ForexLive — fiable depuis Vercel ─────────────────────────────────
       parseRSS(
         "https://www.forexlive.com/feed/news",
-        "ForexLive", "Forex", 10
+        "ForexLive", "Forex", 12
       ),
+      // ── FXStreet — direct bloqué, proxy Google News ───────────────────────
       parseRSS(
-        "https://www.dailyfx.com/feeds/all",
-        "DailyFX", "Forex", 10
-      ),
-      parseRSS(
-        "https://feeds.reuters.com/reuters/businessNews",
-        "Reuters", "Markets", 8
-      ),
-      // FXStreet en dernier (souvent bloqué depuis Vercel)
-      parseRSS(
-        "https://www.fxstreet.com/rss/news",
+        "https://news.google.com/rss/search?q=fxstreet+forex+currency+analysis&hl=en&gl=US&ceid=US:en",
         "FXStreet", "Forex", 10
+      ),
+      // ── InvestingLive — essai direct Investing.com ────────────────────────
+      parseRSS(
+        "https://www.investing.com/rss/news_285.rss",
+        "InvestingLive", "Forex", 10
+      ),
+      // ── InvestingLive fallback — Google News si investing.com bloqué ──────
+      parseRSS(
+        "https://news.google.com/rss/search?q=investing+forex+currency+economic+analysis&hl=en&gl=US&ceid=US:en",
+        "InvestingLive", "Forex", 10
+      ),
+      // ── Markets — Google News macro/banques centrales ─────────────────────
+      parseRSS(
+        "https://news.google.com/rss/search?q=forex+market+economy+Fed+ECB+interest+rates+inflation&hl=en&gl=US&ceid=US:en",
+        "Google News", "Markets", 12
+      ),
+      // ── Markets fallback — actualités macro supplémentaires ───────────────
+      parseRSS(
+        "https://news.google.com/rss/search?q=central+bank+monetary+policy+dollar+euro+yen&hl=en&gl=US&ceid=US:en",
+        "Google News", "Markets", 8
+      ),
+      // ── Forex général ─────────────────────────────────────────────────────
+      parseRSS(
+        "https://news.google.com/rss/search?q=EUR+USD+GBP+JPY+forex+currency+trading&hl=en&gl=US&ceid=US:en",
+        "Google News", "Forex", 10
       ),
     ]);
 
@@ -129,7 +139,7 @@ export async function GET() {
       return db - da;
     });
 
-    return Response.json(allItems.slice(0, 40));
+    return Response.json(allItems.slice(0, 60));
   } catch {
     return Response.json([]);
   }

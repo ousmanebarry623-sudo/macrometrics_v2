@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 interface Article { title: string; link: string; pubDate: string; source: string; category: string; summary?: string; }
 
 const SOURCE_COLORS: Record<string, string> = {
-  "FXStreet": "#06b6d4",
-  "ForexLive": "#22c55e",
+  "FXStreet":    "#06b6d4",
+  "ForexLive":   "#22c55e",
   "InvestingLive": "#10b981",
+  "DailyFX":     "#818cf8",
+  "Google News": "#475569",
 };
 
 function timeAgo(dateStr: string) {
