@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import type { CentralBank } from "@/lib/trading-economics";
+import { useBreakpoint } from "@/lib/use-breakpoint";
 
 const BIAS_CFG = {
   hawkish: { color: "#22c55e", label: "Hawkish 🦅", bg: "rgba(34,197,94,0.06)" },
@@ -20,6 +21,9 @@ export default function CentralBanksCard() {
   const [banks, setBanks] = useState<CentralBank[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpd, setLastUpd] = useState("");
+  const { isMobile, isTablet } = useBreakpoint();
+
+  const banksGridCols = isMobile ? "1fr" : isTablet ? "repeat(2,1fr)" : "repeat(auto-fill, minmax(240px,1fr))";
 
   const fetchData = useCallback(async () => {
     try {
@@ -56,13 +60,13 @@ export default function CentralBanksCard() {
       </div>
 
       {loading ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px,1fr))", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: banksGridCols, gap: 10 }} suppressHydrationWarning>
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="skeleton" style={{ height: 160, borderRadius: 8 }} />
           ))}
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px,1fr))", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: banksGridCols, gap: 10 }} suppressHydrationWarning>
           {banks.map(b => {
             const bc = BIAS_CFG[b.bias];
             const forecast = b.forecast ?? b.currentRate;

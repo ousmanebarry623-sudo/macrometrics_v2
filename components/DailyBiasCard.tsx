@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import type { PairSignal } from "@/app/api/signal-analysis/route";
+import { useBreakpoint } from "@/lib/use-breakpoint";
 
 // ── Bias types ────────────────────────────────────────────────────────────────
 type BiasType = "HAUSSIER" | "HAUSSIER MODÉRÉ" | "BAISSIER" | "BAISSIER MODÉRÉ" | "NEUTRE" | "INDÉCIS";
@@ -257,12 +258,13 @@ export default function DailyBiasCard() {
     return () => clearInterval(id);
   }, [fetchData]);
 
+  const { isMobile } = useBreakpoint();
   const pairSignal = allData.find(d => d.pair === selected);
   const bias       = pairSignal ? computeDailyBias(pairSignal) : null;
   const cfg        = bias ? BIAS_CFG[bias.bias] : null;
 
   return (
-    <div style={{ background: "#10101e", border: "1px solid #1c1c38", borderRadius: 12, padding: 20 }}>
+    <div style={{ background: "#10101e", border: "1px solid #1c1c38", borderRadius: 12, padding: isMobile ? "14px 12px" : 20 }} suppressHydrationWarning>
 
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -360,7 +362,7 @@ export default function DailyBiasCard() {
           </div>
 
           {/* Factor mini-pills */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6, marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 6, marginBottom: 16 }} suppressHydrationWarning>
             {bias.factors.map(f => (
               <div key={f.label} style={{
                 background: "#0d0d1a", border: `1px solid ${FACTOR_COLOR(f.bias)}25`,
@@ -389,7 +391,7 @@ export default function DailyBiasCard() {
           </div>
 
           {/* Risk + Opportunity */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }} suppressHydrationWarning>
             <div style={{ background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.15)", borderRadius: 8, padding: "10px 12px" }}>
               <div style={{ fontSize: 9, fontWeight: 700, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>⚠ Risque principal</div>
               <p style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.55, margin: 0 }}>{bias.risk}</p>

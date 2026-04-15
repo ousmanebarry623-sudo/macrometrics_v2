@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid } from "recharts";
+import { useBreakpoint } from "@/lib/use-breakpoint";
 
 interface COTWeek { weekDate: string; nonCommNet: number; openInterest: number; changeLong: number; changeShort: number; nonCommLong: number; nonCommShort: number; commNet: number; }
 interface COTInstrument { name: string; category: string; latest: COTWeek; history: COTWeek[]; sentiment: string; extremeLevel: number; }
@@ -52,6 +53,7 @@ export default function COTChartCard() {
   const [weekIdx, setWeekIdx]     = useState(0);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [inWindow, setInWindow]   = useState(false);
+  const { isMobile } = useBreakpoint();
 
   const loadData = useCallback(() => {
     fetch(`/api/cot?t=${Date.now()}`, { cache: "no-store" })
@@ -253,7 +255,7 @@ export default function COTChartCard() {
           )}
 
           {/* Stats row */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 8, marginBottom: 16 }} suppressHydrationWarning>
             {[
               { label: "Net Non-Comm", value: formatK(weekData.nonCommNet), color: weekData.nonCommNet >= 0 ? "#22c55e" : "#ef4444" },
               { label: "Variation",    value: (weekData.changeLong - weekData.changeShort >= 0 ? "+" : "") + formatK(weekData.changeLong - weekData.changeShort), color: weekData.changeLong - weekData.changeShort >= 0 ? "#22c55e" : "#ef4444" },

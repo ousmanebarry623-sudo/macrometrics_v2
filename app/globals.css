@@ -79,3 +79,90 @@ html, body {
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line { stroke: #1c1c38; }
 .recharts-tooltip-wrapper { outline: none; }
+
+/* ── Responsive layout utilities ─────────────────────────────────────────── */
+
+/* Page wrapper */
+.page-container {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+@media (max-width: 640px) {
+  .page-container { padding: 12px 12px; }
+}
+
+/* Row 1: DailyBias + FearGreed + Sessions */
+.grid-row1 {
+  display: grid;
+  grid-template-columns: 1fr 220px 300px;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 1100px) {
+  .grid-row1 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .grid-row1 > *:last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 640px) {
+  .grid-row1 {
+    grid-template-columns: 1fr;
+  }
+  .grid-row1 > *:last-child { grid-column: unset; }
+}
+
+/* Central banks grid */
+.banks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+@media (max-width: 1024px) {
+  .banks-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .banks-grid { grid-template-columns: 1fr; }
+}
+
+/* Factor pills: 4-col → 2-col on mobile */
+.factor-pills-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 16px;
+}
+@media (max-width: 640px) {
+  .factor-pills-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Risk + Opportunity: 2-col → 1-col on mobile */
+.risk-opp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+@media (max-width: 640px) {
+  .risk-opp-grid { grid-template-columns: 1fr; }
+}
+
+/* Scrollable table wrapper */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Card padding responsive */
+.card-pad {
+  padding: 20px;
+}
+@media (max-width: 640px) {
+  .card-pad { padding: 14px 12px; }
+}
+
+/* Top pairs label wrapping on mobile */
+@media (max-width: 640px) {
+  .bias-label-mobile {
+    display: none;
+  }
+}
