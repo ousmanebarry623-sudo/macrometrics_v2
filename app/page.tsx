@@ -3,8 +3,6 @@ import QuickLinks from "@/components/QuickLinks";
 import COTChartCard from "@/components/COTChartCard";
 import RetailSentimentCard from "@/components/RetailSentimentCard";
 import SeasonalityG8 from "@/components/SeasonalityG8";
-import FundamentalFeed from "@/components/FundamentalFeed";
-import OpenInterestCard from "@/components/OpenInterestCard";
 import CentralBanksCard from "@/components/CentralBanksCard";
 import ResponsiveRow1 from "@/components/ResponsiveRow1";
 
@@ -61,13 +59,6 @@ export default function HomePage() {
         <SeasonalityG8 />
       </div>
 
-      {/* Row 5: Open Interest */}
-      <div style={{ marginBottom: 16 }}>
-        <OpenInterestCard />
-      </div>
-
-      {/* Row 6: Fundamental Analysis */}
-      <FundamentalFeed limit={12} />
     </div>
   );
 }
