@@ -290,22 +290,33 @@ function computePair(
   const direction: PairSignal["direction"] =
     signal === "BUY" ? "up" : signal === "SELL" ? "down" : "flat";
 
-  const confidence = Math.round(
-    (Math.abs(rawSum) / 4) * 50 +
-    (factors / 4) * 30 +
-    (instStrengthPct / 100) * 20
-  );
+  // ── Confidence (0–100) — 4 composantes continues ─────────────────────────
+  // 1. Force directionnelle (0–50) : accord des facteurs
+  const dirForce   = Math.round((Math.abs(rawSum) / 4) * 50);
+  // 2. Conviction COT via z-score CFTC (0–30) — mesure la plus objective
+  const cotConv    = Math.min(30, Math.round((Math.abs(instNetZ) / 3.5) * 30));
+  // 3. Magnitude des surprises macro TradingView (0–15)
+  const macroConv  = Math.min(15, Math.round((Math.abs(fundNet) / 5.0) * 15));
+  // 4. Bonus sentiment extrême MyFXBook (0–5)
+  const sentConv   = sentExtreme ? 5 : 0;
+  const confidence = Math.min(100, dirForce + cotConv + macroConv + sentConv);
 
   const confLevel: PairSignal["confLevel"] =
     confidence >= 65 ? "HIGH" : confidence >= 45 ? "MEDIUM" : "LOW";
 
-  const quality = Math.round(
-    Math.abs(instNetZ) * 20 +
-    Math.abs(fundNet)  * 8  +
-    (sentExtreme ? 15 : 0)  +
-    (Math.abs(seasonal.score) > 0 ? 10 : 0) +
-    factors * 8
-  );
+  // ── Quality (0–100) — force de chaque dimension, plafonnée individuellement
+  // 1. Force COT institutionnelle (0–35) — z-score CFTC
+  const cotQuality   = Math.min(35, Math.round((Math.abs(instNetZ) / 3.5) * 35));
+  // 2. Magnitude surprises macro (0–25)
+  const macroQuality = Math.min(25, Math.round((Math.abs(fundNet) / 5.0) * 25));
+  // 3. Extrémité sentiment retail MyFXBook (0–20)
+  const sentExt      = Math.abs(pairRetailLong - 50);
+  const sentQuality  = Math.min(20, Math.round((sentExt / 40) * 20));
+  // 4. Alignement signaux (0–15) — % de facteurs non-neutres
+  const alignQuality = Math.round((factors / 4) * 15);
+  // 5. Saisonnalité présente (0–5)
+  const seasQuality  = Math.abs(seasonal.score) > 0 ? 5 : 0;
+  const quality      = Math.min(100, cotQuality + macroQuality + sentQuality + alignQuality + seasQuality);
 
   return {
     pair: p.pair, base: p.base, quote: p.quote, category: p.category,
