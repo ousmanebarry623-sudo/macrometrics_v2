@@ -24,6 +24,7 @@ const ElteSmartDashboard = dynamic(() => import("@/components/ElteSmartDashboard
 });
 
 const TelegramPanel = dynamic(() => import("@/components/TelegramPanel"), { ssr: false });
+const SignalProPanel = dynamic(() => import("@/components/SignalProPanel"), { ssr: false });
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function fmtPrice(v: number, sym: string) {
@@ -38,6 +39,7 @@ export default function SignalPage() {
   const [tfIdx,     setTfIdx]     = useState(4);
   const [activeCat, setActiveCat] = useState("Majeurs");
   const [autoSend,  setAutoSend]  = useState(false);
+  const [proMetrics, setProMetrics] = useState<DashMetrics | null>(null);
 
   // Charger l'état autoSend depuis localStorage côté client
   useEffect(() => {
@@ -153,6 +155,7 @@ export default function SignalPage() {
   // ── Callback depuis ElteSmartDashboard ────────────────────────────────────
   const handleMetrics = useCallback((m: DashMetrics) => {
     metricsRef.current = m;
+    setProMetrics(m);
     if (sigDataRef.current) {
       rebuildTgSignal(sigDataRef.current.sig, sigDataRef.current.params, m, sym.label, tf.label);
     }
@@ -252,7 +255,7 @@ export default function SignalPage() {
       {/* ── Paires de la catégorie active ───────────────────────────────── */}
       <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
         {visibleSymbols.map(({ label, tv, i }) => (
-          <button key={tv} onClick={() => { setSymIdx(i); sigDataRef.current = null; metricsRef.current = null; setTgSignal(null); }} style={{
+          <button key={tv} onClick={() => { setSymIdx(i); sigDataRef.current = null; metricsRef.current = null; setTgSignal(null); setProMetrics(null); }} style={{
             fontSize:11, fontWeight:600, padding:"4px 11px", borderRadius:7, cursor:"pointer",
             background: symIdx === i ? "rgba(212,175,55,.12)" : "#10101e",
             border:    `1px solid ${symIdx === i ? "rgba(212,175,55,.3)" : "#1c1c38"}`,
@@ -265,7 +268,7 @@ export default function SignalPage() {
       <div style={{ display:"flex", gap:3, alignItems:"center" }}>
         <span style={{ fontSize:11, color:"#334155", marginRight:6 }}>Unité de temps :</span>
         {SIGNAL_TFS.map((t, i) => (
-          <button key={t.label} onClick={() => { setTfIdx(i); sigDataRef.current = null; metricsRef.current = null; setTgSignal(null); }} style={{
+          <button key={t.label} onClick={() => { setTfIdx(i); sigDataRef.current = null; metricsRef.current = null; setTgSignal(null); setProMetrics(null); }} style={{
             fontSize:12, fontWeight:700, padding:"4px 11px", borderRadius:6, cursor:"pointer", minWidth:36,
             background: tfIdx === i ? "rgba(99,102,241,.15)" : "#10101e",
             border:    `1px solid ${tfIdx === i ? "rgba(99,102,241,.4)" : "#1c1c38"}`,
@@ -300,6 +303,14 @@ export default function SignalPage() {
         currentYf={sym.yf}
         currentLabel={sym.label}
         currentTfLabel={tf.label}
+      />
+
+      {/* ── Signal PRO ──────────────────────────────────────────────────── */}
+      <SignalProPanel
+        key={`pro-${sym.yf}-${tf.label}`}
+        pairLabel={sym.label}
+        tfLabel={tf.label}
+        metrics={proMetrics}
       />
 
       {/* ── Note ────────────────────────────────────────────────────────── */}
