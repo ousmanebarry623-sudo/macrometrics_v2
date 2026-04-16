@@ -76,8 +76,8 @@ function ScoreBar({ score, label }: { score: number; label: string }) {
 }
 
 function Bullet({ value }: { value: string }) {
-  const isBull = value === "Bullish" || value === "Buy" || value === "Confirming" || value === "Trending" || value === "Expanding" || value === "RISK_ON" || value === "Risk-On";
-  const isBear = value === "Bearish" || value === "Sell" || value === "RISK_OFF" || value === "Risk-Off";
+  const isBull = value === "Bullish" || value === "Buy" || value === "Confirming" || value === "Trending" || value === "Expanding" || value === "RISK_ON" || value === "Risk-On" || value === "Contrarian Bull";
+  const isBear = value === "Bearish" || value === "Sell" || value === "RISK_OFF" || value === "Risk-Off" || value === "Contrarian Bear";
   const color  = isBull ? "#22c55e" : isBear ? "#ef4444" : "#64748b";
   return <span style={{ fontSize: 11, color, fontWeight: 700 }}>● {value}</span>;
 }

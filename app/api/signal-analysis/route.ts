@@ -75,12 +75,20 @@ const PAIRS: { pair: string; base: string; quote: string; category: "Major"|"Cro
   { pair:"AUD/NZD", base:"AUD", quote:"NZD", category:"Cross" },
   { pair:"NZD/JPY", base:"NZD", quote:"JPY", category:"Cross" },
   { pair:"CAD/JPY", base:"CAD", quote:"JPY", category:"Cross" },
+  { pair:"EUR/CHF", base:"EUR", quote:"CHF", category:"Cross" },
+  { pair:"GBP/CHF", base:"GBP", quote:"CHF", category:"Cross" },
+  { pair:"EUR/NZD", base:"EUR", quote:"NZD", category:"Cross" },
+  { pair:"AUD/CHF", base:"AUD", quote:"CHF", category:"Cross" },
+  { pair:"NZD/CAD", base:"NZD", quote:"CAD", category:"Cross" },
+  { pair:"NZD/CHF", base:"NZD", quote:"CHF", category:"Cross" },
+  { pair:"CAD/CHF", base:"CAD", quote:"CHF", category:"Cross" },
+  { pair:"CHF/JPY", base:"CHF", quote:"JPY", category:"Cross" },
   // Mineurs USD
   { pair:"USD/MXN", base:"USD", quote:"MXN", category:"Minor" },
   // Matières premières
   { pair:"XAU/USD", base:"XAU", quote:"USD", category:"Commodity" },
   { pair:"XAG/USD", base:"XAG", quote:"USD", category:"Commodity" },
-  { pair:"WTI/USD", base:"WTI", quote:"USD", category:"Commodity" },
+  { pair:"WTI", base:"WTI", quote:"USD", category:"Commodity" },
   { pair:"XCU/USD", base:"XCU", quote:"USD", category:"Commodity" },
 ];
 

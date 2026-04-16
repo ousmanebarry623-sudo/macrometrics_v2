@@ -327,7 +327,11 @@ export function computeSignalPro(
       },
       macro: {
         cot:         pairSignal?.institutional.bias ?? "N/A",
-        retail:      pairSignal ? `${pairSignal.sentiment.longPct}% Long` : "N/A",
+        retail:      pairSignal
+          ? (pairSignal.sentiment.longPct < 35 ? "Contrarian Bull"
+            : pairSignal.sentiment.longPct > 65 ? "Contrarian Bear"
+            : `${pairSignal.sentiment.longPct}% Long`)
+          : "N/A",
         seasonality: pairSignal?.seasonality.bias  ?? "N/A",
         macro:       pairSignal?.fundamental.bias  ?? "N/A",
         regime:      regime ?? "N/A",
