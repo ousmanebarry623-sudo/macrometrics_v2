@@ -269,6 +269,8 @@ export default function ElteSmartDashboard({ yfSymbol, tfLabel, yfInterval, yfRa
   const [tfBulls, setTfBulls] = useState<(boolean | null)[]>(TF_DASH.map(() => null));
   const [loading, setLoading] = useState(true);
   const dashRef = useRef<DashResult | null>(null);
+  const onMetricsRef = useRef(onMetrics);
+  useEffect(() => { onMetricsRef.current = onMetrics; }, [onMetrics]);
 
   // ── Fetch main data + compute dashboard ──────────────────────────────────
   useEffect(() => {
@@ -319,9 +321,9 @@ export default function ElteSmartDashboard({ yfSymbol, tfLabel, yfInterval, yfRa
           }
         });
         // Propagate updated tfBulls to Signal PRO
-        if (onMetrics && dashRef.current) {
+        if (onMetricsRef.current && dashRef.current) {
           const d = dashRef.current;
-          onMetrics({
+          onMetricsRef.current({
             trend:         d.trend,
             volume:        d.volume,
             momentum:      d.momentum,
