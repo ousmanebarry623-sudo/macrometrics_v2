@@ -37,7 +37,7 @@ export default function HomePage() {
         <MarketRegimeDetector />
       </div>
 
-      {/* Row 1: Biais Journalier + Fear&Greed + Sessions */}
+      {/* Row 1: Biais Journalier + Sessions */}
       <ResponsiveRow1 />
 
       {/* Row 2: G8 Overview full width */}
