@@ -6,10 +6,10 @@ import type { RegimeType }  from "@/lib/market-regime";
 
 // Local interface — will align with DashMetrics after Task 2 extends it
 export interface DashMetrics {
-  trend:         string;
-  volume:        string;
-  momentum:      string;
-  volatility:    string;
+  trend:         "Bullish" | "Bearish";
+  volume:        "Bullish" | "Bearish";
+  momentum:      "Bullish" | "Bearish";
+  volatility:    "Expanding 🚀" | "Trending 📈" | "Ranging";
   barsSince:     number;
   position:      "Buy" | "Sell";
   sensitivity:   number;
@@ -26,7 +26,6 @@ export interface TechnicalFactors {
   tfConsensus:  string;
   volume:       string;
   volatility:   string;
-  momentum:     string;
   sensitivity:  number;
 }
 
@@ -83,7 +82,7 @@ export function computeTechnicalScore(metrics: DashMetrics): number {
   score += metrics.volume === "Bullish" ? 10 : 0;
 
   // Volatility state (5 pts)
-  score += (metrics.volatility.includes("Expanding") || metrics.volatility.includes("Trending")) ? 5 : 2;
+  score += metrics.volatility !== "Ranging" ? 5 : 2;
 
   // Sensitivity proxy ADX (5 pts)
   score += metrics.sensitivity >= 3.5 ? 5 : metrics.sensitivity >= 3.0 ? 3 : 1;
@@ -222,10 +221,14 @@ export function detectDivergences(
     divs.push("Supertrend baissier mais régime Risk-On → contexte macro favorable");
 
   const bullCount = metrics.tfBulls.filter(b => b === true).length;
-  if (bullCount >= 8 && institutional.bias === "Bearish")
-    divs.push(`${bullCount}/11 TFs haussiers mais COT institutionnel baissier → divergence majeure`);
-  else if (bullCount <= 3 && institutional.bias === "Bullish")
-    divs.push(`Seulement ${bullCount}/11 TFs haussiers mais COT haussier → divergence majeure`);
+  const tfValid   = metrics.tfBulls.filter(b => b !== null).length || 1;
+  const highThreshold = Math.round(tfValid * 0.73);
+  const lowThreshold  = Math.round(tfValid * 0.27);
+
+  if (bullCount >= highThreshold && institutional.bias === "Bearish")
+    divs.push(`${bullCount}/${tfValid} TFs haussiers mais COT institutionnel baissier → divergence majeure`);
+  else if (bullCount <= lowThreshold && institutional.bias === "Bullish")
+    divs.push(`Seulement ${bullCount}/${tfValid} TFs haussiers mais COT haussier → divergence majeure`);
 
   const isSeasConfirm =
     (isTechBull && seasonality.bias === "Bullish") ||
@@ -252,11 +255,21 @@ export function generateResume(
   const techFactors: string[]  = [];
   const macroFactors: string[] = [];
 
-  if (metrics.position === "Buy")     techFactors.push("Supertrend");
-  if (metrics.momentum === "Bullish") techFactors.push("MACD");
-  if (metrics.trend    === "Bullish") techFactors.push("EMA200");
-  const bullTFs = metrics.tfBulls.filter(b => b === true).length;
-  if (bullTFs >= 7)                   techFactors.push(`${bullTFs}/11 TFs`);
+  const isBuy = signal === "BUY";
+
+  if (isBuy) {
+    if (metrics.position === "Buy")     techFactors.push("Supertrend");
+    if (metrics.momentum === "Bullish") techFactors.push("MACD");
+    if (metrics.trend    === "Bullish") techFactors.push("EMA200");
+    const bullTFs = metrics.tfBulls.filter(b => b === true).length;
+    if (bullTFs >= 7)                   techFactors.push(`${bullTFs}/11 TFs`);
+  } else {
+    if (metrics.position === "Sell")    techFactors.push("Supertrend");
+    if (metrics.momentum === "Bearish") techFactors.push("MACD");
+    if (metrics.trend    === "Bearish") techFactors.push("EMA200");
+    const bearTFs = metrics.tfBulls.filter(b => b === false).length;
+    if (bearTFs >= 7)                   techFactors.push(`${bearTFs}/11 TFs`);
+  }
 
   if (pairSignal) {
     if (pairSignal.institutional.bias !== "Neutral")
@@ -266,8 +279,8 @@ export function generateResume(
     if (pairSignal.seasonality.bias !== "Neutral")
       macroFactors.push(`saisonnalité ${pairSignal.seasonality.bias.toLowerCase()}`);
   }
-  if (regime === "RISK_ON")  macroFactors.push("régime Risk-On");
-  if (regime === "RISK_OFF") macroFactors.push("régime Risk-Off");
+  if (isBuy && regime === "RISK_ON")   macroFactors.push("régime Risk-On");
+  if (!isBuy && regime === "RISK_OFF") macroFactors.push("régime Risk-Off");
 
   const techPart  = techFactors.length > 0
     ? `Les signaux techniques (${techFactors.join(", ")}) sont ${dir}s`
@@ -320,9 +333,8 @@ export function computeSignalPro(
         ema200:      metrics.trend,
         tfConsensus: `${bullCount}/${tfValid} Bullish`,
         volume:      metrics.volume,
-        volatility:  metrics.volatility.includes("Expanding") ? "Expanding"
-                   : metrics.volatility.includes("Trending")  ? "Trending" : "Ranging",
-        momentum:    metrics.momentum,
+        volatility:  metrics.volatility === "Ranging" ? "Ranging"
+                   : metrics.volatility === "Trending 📈" ? "Trending" : "Expanding",
         sensitivity: metrics.sensitivity,
       },
       macro: {
