@@ -1,6 +1,6 @@
 // components/SignalProPanel.tsx
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { computeSignalPro }    from "@/lib/signal-pro";
 import type { SignalProResult } from "@/lib/signal-pro";
 import type { DashMetrics }    from "@/components/ElteSmartDashboard";
@@ -9,7 +9,6 @@ import type { RegimeType }     from "@/lib/market-regime";
 import type { MarketRegimeResponse } from "@/app/api/market-regime/route";
 
 interface Props {
-  yfSymbol:  string;
   pairLabel: string;  // ex: "EUR/USD"
   tfLabel:   string;
   metrics:   DashMetrics | null;
@@ -112,14 +111,16 @@ function PanelSkeleton() {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function SignalProPanel({ yfSymbol: _yfSymbol, pairLabel, tfLabel, metrics }: Props) {
+export default function SignalProPanel({ pairLabel, tfLabel, metrics }: Props) {
   const [pairSignal,  setPairSignal]  = useState<PairSignal | null>(null);
   const [regime,      setRegime]      = useState<RegimeType | null>(null);
   const [loading,     setLoading]     = useState(false);
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
+  const [error,       setError]       = useState<boolean>(false);
 
   const fetchMacro = useCallback(async () => {
     setLoading(true);
+    setError(false);
     try {
       const [saRes, rgRes] = await Promise.all([
         fetch("/api/signal-analysis"),
@@ -133,14 +134,21 @@ export default function SignalProPanel({ yfSymbol: _yfSymbol, pairLabel, tfLabel
           s.pair.replace("/", "") === pairLabel.replace("/", ""),
         );
         setPairSignal(match ?? null);
+      } else {
+        setError(true);
       }
 
       if (rgRes.ok) {
         const rgData: MarketRegimeResponse = await rgRes.json();
-        setRegime((rgData.snapshot?.regime ?? null) as RegimeType | null);
+        const r = rgData.snapshot?.regime;
+        if (r === "RISK_ON" || r === "MIXED" || r === "TRANSITION" || r === "RISK_OFF") {
+          setRegime(r);
+        }
       }
 
       setLastRefresh(new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }));
+    } catch {
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -148,12 +156,13 @@ export default function SignalProPanel({ yfSymbol: _yfSymbol, pairLabel, tfLabel
 
   useEffect(() => { fetchMacro(); }, [fetchMacro]);
 
+  const lastResultRef = useRef<SignalProResult | null>(null);
+
+  const freshResult = metrics ? computeSignalPro(pairLabel, metrics, pairSignal, regime) : null;
+  if (freshResult) lastResultRef.current = freshResult;
+  const result = freshResult ?? lastResultRef.current;
+
   if (!metrics) return <PanelSkeleton />;
-
-  const result: SignalProResult | null = loading
-    ? null
-    : computeSignalPro(pairLabel, metrics, pairSignal, regime);
-
   if (!result) return <PanelSkeleton />;
 
   const { signal, confidence, confLevel, horizon, technicalScore, macroScore,
@@ -176,6 +185,14 @@ export default function SignalProPanel({ yfSymbol: _yfSymbol, pairLabel, tfLabel
           <span style={{ fontSize: 11, color: "#64748b" }}>{pairLabel} · {tfLabel}</span>
           {lastRefresh && (
             <span style={{ fontSize: 10, color: "#334155" }}>mis à jour {lastRefresh}</span>
+          )}
+          {error && (
+            <span style={{
+              fontSize: 10, color: "#f59e0b",
+              background: "rgba(245,158,11,.1)",
+              border: "1px solid rgba(245,158,11,.2)",
+              borderRadius: 4, padding: "1px 7px",
+            }}>⚠ Données macro indisponibles</span>
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -281,8 +298,8 @@ export default function SignalProPanel({ yfSymbol: _yfSymbol, pairLabel, tfLabel
             ⚠ Divergences détectées
           </div>
           <ul style={{ margin: 0, paddingLeft: 16, display: "flex", flexDirection: "column", gap: 3 }}>
-            {divergences.map((d, i) => (
-              <li key={i} style={{ fontSize: 11, color: "#94a3b8" }}>{d}</li>
+            {divergences.map(d => (
+              <li key={d} style={{ fontSize: 11, color: "#94a3b8" }}>{d}</li>
             ))}
           </ul>
         </div>

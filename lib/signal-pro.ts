@@ -3,19 +3,7 @@
 
 import type { PairSignal } from "@/app/api/signal-analysis/route";
 import type { RegimeType }  from "@/lib/market-regime";
-
-// Local interface — will align with DashMetrics after Task 2 extends it
-export interface DashMetrics {
-  trend:         "Bullish" | "Bearish";
-  volume:        "Bullish" | "Bearish";
-  momentum:      "Bullish" | "Bearish";
-  volatility:    "Expanding 🚀" | "Trending 📈" | "Ranging";
-  barsSince:     number;
-  position:      "Buy" | "Sell";
-  sensitivity:   number;
-  trendStrength: number;
-  tfBulls:       (boolean | null)[];
-}
+import type { DashMetrics } from "@/components/ElteSmartDashboard";
 
 // ── Types publics ──────────────────────────────────────────────────────────────
 
