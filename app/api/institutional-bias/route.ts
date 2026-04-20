@@ -12,7 +12,7 @@ import {
   computeConfluenceLayer,
   computeEntryLevels,
   generateArguments,
-  selectTop6,
+  selectTop8,
   type InstitutionalPairSignal,
 } from "@/lib/institutional-bias";
 import type { PairSignal } from "@/app/api/signal-analysis/route";
@@ -79,7 +79,7 @@ export async function GET(req: Request) {
   if (!force) {
     try {
       const cached = await kv.get<{
-        top6: InstitutionalPairSignal[];
+        top8: InstitutionalPairSignal[];
         regime: string;
         dxyTrend: string;
         vix: number;
@@ -148,18 +148,18 @@ export async function GET(req: Request) {
       }
     }
 
-    const top6     = selectTop6(allScores);
+    const top8     = selectTop8(allScores);
     const dxyTrend = dxyStructure === "BULLISH" ? "BULLISH" : dxyStructure === "BEARISH" ? "BEARISH" : "NEUTRAL";
-    const data     = { top6, regime: regime ?? "MIXED", dxyTrend, vix, updatedAt: new Date().toISOString() };
+    const data     = { top8, regime: regime ?? "MIXED", dxyTrend, vix, updatedAt: new Date().toISOString() };
 
     kv.set(CACHE_KEY, data, { ex: CACHE_TTL }).catch(() => {});
 
-    return NextResponse.json(data, { headers: { "X-Cache": "MISS", "X-Top6": String(top6.length) } });
+    return NextResponse.json(data, { headers: { "X-Cache": "MISS", "X-Top6": String(top8.length) } });
 
   } catch (err) {
     console.error("[institutional-bias]", err);
     return NextResponse.json(
-      { error: String(err), top6: [], regime: "MIXED", dxyTrend: "NEUTRAL", vix: 18, updatedAt: new Date().toISOString() },
+      { error: String(err), top8: [], regime: "MIXED", dxyTrend: "NEUTRAL", vix: 18, updatedAt: new Date().toISOString() },
       { status: 500 },
     );
   }

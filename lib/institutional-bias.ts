@@ -298,7 +298,7 @@ export function generateArguments(
 
 // ── Top 6 selection ───────────────────────────────────────────────────────────
 
-export function selectTop6(scores: InstitutionalPairSignal[]): InstitutionalPairSignal[] {
+export function selectTop8(scores: InstitutionalPairSignal[]): InstitutionalPairSignal[] {
   const MIN_SCORE  = 55;
   const MIN_LAYERS = 3;
 
@@ -311,13 +311,13 @@ export function selectTop6(scores: InstitutionalPairSignal[]): InstitutionalPair
   const buys  = qualified.filter(s => s.direction === "BUY").sort((a, b) => b.score - a.score);
   const sells = qualified.filter(s => s.direction === "SELL").sort((a, b) => b.score - a.score);
 
-  const result = [...buys.slice(0, 3), ...sells.slice(0, 3)];
+  const result = [...buys.slice(0, 4), ...sells.slice(0, 4)];
 
-  if (result.length < 6) {
+  if (result.length < 8) {
     const extra = qualified
       .filter(s => !result.includes(s))
       .sort((a, b) => b.score - a.score)
-      .slice(0, 6 - result.length);
+      .slice(0, 8 - result.length);
     result.push(...extra);
   }
 

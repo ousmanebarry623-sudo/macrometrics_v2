@@ -18,7 +18,7 @@ interface DailyBias {
 }
 
 interface InstitutionalResponse {
-  top6:      InstitutionalPairSignal[];
+  top8:      InstitutionalPairSignal[];
   regime:    string;
   dxyTrend:  string;
   vix:       number;
@@ -237,7 +237,7 @@ export default function DailyBiasCard() {
       let instOk = false;
       if (instRes.status === "fulfilled" && instRes.value.ok) {
         const j: InstitutionalResponse = await instRes.value.json();
-        if (!j.error && j.top6 && j.top6.length > 0) {
+        if (!j.error && j.top8 && j.top8.length > 0) {
           setInst(j);
           instOk = true;
         }
@@ -313,14 +313,14 @@ export default function DailyBiasCard() {
         <div className="skeleton" style={{ height: 380, borderRadius: 8 }} />
       )}
 
-      {/* TOP 6 — Primary */}
-      {!loading && inst && inst.top6.length > 0 && (
+      {/* TOP 8 — Primary */}
+      {!loading && inst && inst.top8.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-            Top 6 setups institutionnels
+            Top 8 setups institutionnels
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {inst.top6.map((s, i) => {
+            {inst.top8.map((s, i) => {
               const dirColor = s.direction === "BUY" ? "#22c55e" : "#ef4444";
               const dirLabel = s.direction === "BUY" ? "↑ HAUSSIER" : "↓ BAISSIER";
               const isOpen   = expanded === `${s.pair}-${s.direction}`;
@@ -434,18 +434,18 @@ export default function DailyBiasCard() {
         </div>
       )}
 
-      {/* Fallback: top 3 legacy when institutional failed */}
+      {/* Fallback: top 8 legacy when institutional failed */}
       {!loading && instFailed && allData.length > 0 && (() => {
         const top3 = allData
           .filter(d => d.signal !== "NEUTRAL")
           .map(d => ({ ...d, confScore: computeConfidenceLegacy(d), biasFull: determineBias(d) }))
           .sort((a, b) => b.confScore - a.confScore)
-          .slice(0, 3);
+          .slice(0, 8);
         if (!top3.length) return null;
         return (
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 7 }}>
-              🏆 Top paires (mode basique)
+              🏆 Top 8 paires (mode basique)
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               {top3.map((d, i) => {
