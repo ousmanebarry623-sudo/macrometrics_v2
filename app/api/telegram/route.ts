@@ -21,8 +21,14 @@ interface TelegramPayload {
   momentum?:   string;
   volatility?: string;
   barsSince?:  number;
-  testMode?:   boolean;   // envoie juste un message de test de connexion
-  rawText?:    string;    // si défini, envoie ce texte brut sans construire le message
+  // Signal PRO enrichment
+  confidence?:  number;
+  confLevel?:   "HIGH" | "MEDIUM" | "LOW";
+  horizon?:     string;
+  divergences?: string[];
+  resume?:      string;
+  testMode?:   boolean;
+  rawText?:    string;
 }
 
 // Échapper les caractères spéciaux HTML pour Telegram HTML mode
@@ -41,38 +47,64 @@ function buildMessage(p: TelegramPayload): string {
       `✅ <b>Test de connexion réussi !</b>`,
       ``,
       `🤖 Bot connecté · Canal : <code>${esc(p.chatId)}</code>`,
-      `📡 <i>ELTE SMART macrometrics local</i>`,
+      `📡 <i>ELTE SMART macrometrics</i>`,
     ].join("\n");
   }
 
   const isBuy = p.type === "buy";
-  const emoji = isBuy ? "🟢" : "🔴";
-  const dir   = isBuy ? "BUY" : "SELL";
-  const arrow = isBuy ? "📈" : "📉";
-  const bs    = p.barsSince ?? 0;
+  const dirEmoji  = isBuy ? "🟢" : "🔴";
+  const dir       = isBuy ? "BUY" : "SELL";
+  const trendIcon = isBuy ? "📈" : "📉";
+  const bs        = p.barsSince ?? 0;
 
-  return [
-    `${emoji} <b>SIGNAL ${dir} — ${esc(p.score)}</b>`,
-    `💱 <b>${esc(p.symbol)}</b> · ${esc(p.tf)}`,
-    `📊 Stratégie : <b>${esc(p.strategy)}</b>  |  Sensibilité : <b>${esc(p.sensitivity)}</b>`,
+  // Confidence badge
+  const confEmoji = p.confLevel === "HIGH" ? "🔥" : p.confLevel === "MEDIUM" ? "⚡" : "⚪";
+  const confText  = p.confLevel === "HIGH" ? "FORTE" : p.confLevel === "MEDIUM" ? "MODÉRÉE" : "FAIBLE";
+  const confLine  = p.confidence !== undefined
+    ? `${confEmoji} Confiance : <b>${confText}</b> (${p.confidence}%)`
+    : "";
+
+  // Horizon line
+  const horizonLine = p.horizon ? `⏳ Horizon : <b>${esc(p.horizon)}</b>` : "";
+
+  // Divergences (max 3, abrégées)
+  const divLines: string[] = [];
+  if (p.divergences && p.divergences.length > 0) {
+    divLines.push(`⚠️ <b>Divergences :</b>`);
+    p.divergences.slice(0, 3).forEach(d => divLines.push(`  • ${esc(d)}`));
+  }
+
+  const lines: string[] = [
+    `${dirEmoji} <b>SIGNAL ${dir} — ${esc(p.score)}</b>`,
+    `💱 <b>${esc(p.symbol)}</b> · <b>${esc(p.tf)}</b>  |  Stratégie : ${esc(p.strategy)}`,
+    confLine,
     ``,
-    `──────────────────`,
-    `📍 Entry : <code>${esc(p.entry)}</code>`,
-    `🎯 TP 1  : <code>${esc(p.tp1)}</code>`,
-    `🎯 TP 2  : <code>${esc(p.tp2)}</code>`,
-    `🎯 TP 3  : <code>${esc(p.tp3)}</code>`,
-    `🛑 Stop  : <code>${esc(p.sl)}</code>`,
-    `──────────────────`,
-    `${arrow} Trend : <b>${esc(p.trend)}</b>`,
-    `📦 Volume : <b>${esc(p.volume)}</b>`,
-    `⚡ Momentum : <b>${esc(p.momentum)}</b>`,
-    `🌡 Volatilité : ${esc(p.volatility)}`,
+    `━━━━━━━━━━━━━━━━━━`,
+    `📍 Entry  : <code>${esc(p.entry)}</code>`,
+    `🎯 TP 1   : <code>${esc(p.tp1)}</code>`,
+    `🎯 TP 2   : <code>${esc(p.tp2)}</code>`,
+    `🎯 TP 3   : <code>${esc(p.tp3)}</code>`,
+    `🛑 Stop   : <code>${esc(p.sl)}</code>`,
+    `━━━━━━━━━━━━━━━━━━`,
+    `${trendIcon} Trend : <b>${esc(p.trend)}</b>  |  Volume : <b>${esc(p.volume)}</b>`,
+    `⚡ Momentum : <b>${esc(p.momentum)}</b>  |  Volatilité : ${esc(p.volatility)}`,
+    horizonLine,
     bs > 0
       ? `⏱ Signal il y a <b>${bs}</b> bougie${bs > 1 ? "s" : ""}`
       : `⏱ Signal sur la <b>bougie actuelle</b>`,
-    ``,
-    `🔒 <i>ELTE SMART · Privé · macrometrics</i>`,
-  ].join("\n");
+  ];
+
+  if (divLines.length > 0) {
+    lines.push(``, ...divLines);
+  }
+
+  if (p.resume) {
+    lines.push(``, `📋 <i>${esc(p.resume)}</i>`);
+  }
+
+  lines.push(``, `🔒 <i>ELTE SMART · Privé · macrometrics</i>`);
+
+  return lines.filter(l => l !== undefined && l !== null).join("\n");
 }
 
 async function sendToTelegram(botToken: string, chatId: string, text: string) {

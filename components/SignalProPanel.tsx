@@ -9,9 +9,10 @@ import type { RegimeType }     from "@/lib/market-regime";
 import type { MarketRegimeResponse } from "@/app/api/market-regime/route";
 
 interface Props {
-  pairLabel: string;  // ex: "EUR/USD"
-  tfLabel:   string;
-  metrics:   DashMetrics | null;
+  pairLabel:    string;  // ex: "EUR/USD"
+  tfLabel:      string;
+  metrics:      DashMetrics | null;
+  onProResult?: (result: SignalProResult) => void;
 }
 
 // ── UI Helpers ────────────────────────────────────────────────────────────────
@@ -111,7 +112,7 @@ function PanelSkeleton() {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function SignalProPanel({ pairLabel, tfLabel, metrics }: Props) {
+export default function SignalProPanel({ pairLabel, tfLabel, metrics, onProResult }: Props) {
   const [pairSignal,  setPairSignal]  = useState<PairSignal | null>(null);
   const [regime,      setRegime]      = useState<RegimeType | null>(null);
   const [loading,     setLoading]     = useState(false);
@@ -161,6 +162,11 @@ export default function SignalProPanel({ pairLabel, tfLabel, metrics }: Props) {
   const freshResult = metrics ? computeSignalPro(pairLabel, metrics, pairSignal, regime) : null;
   if (freshResult) lastResultRef.current = freshResult;
   const result = freshResult ?? lastResultRef.current;
+
+  useEffect(() => {
+    if (freshResult && onProResult) onProResult(freshResult);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [freshResult?.signal, freshResult?.confidence, freshResult?.resume, onProResult]);
 
   if (!metrics) return <PanelSkeleton />;
   if (!result) return <PanelSkeleton />;

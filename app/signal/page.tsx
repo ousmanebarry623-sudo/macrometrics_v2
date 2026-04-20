@@ -6,6 +6,7 @@ import { SIGNAL_TFS } from "@/components/SignalChart";
 import type { Signal, ElteParams } from "@/lib/elte-compute";
 import type { DashMetrics } from "@/components/ElteSmartDashboard";
 import type { TelegramSignalData, ServerWatchSymbol } from "@/components/TelegramPanel";
+import type { SignalProResult } from "@/lib/signal-pro";
 import SignalMonitorPanel from "@/components/SignalMonitorPanel";
 import LivePriceTicker from "@/components/LivePriceTicker";
 import { useBreakpoint } from "@/lib/use-breakpoint";
@@ -78,8 +79,9 @@ export default function SignalPage() {
 
   // Données pour Telegram (assemblées depuis SignalChart + Dashboard)
   const [tgSignal, setTgSignal] = useState<TelegramSignalData | null>(null);
-  const metricsRef = useRef<DashMetrics | null>(null);
-  const sigDataRef = useRef<{ sig: Signal; params: ElteParams } | null>(null);
+  const metricsRef  = useRef<DashMetrics | null>(null);
+  const sigDataRef  = useRef<{ sig: Signal; params: ElteParams } | null>(null);
+  const proResultRef = useRef<SignalProResult | null>(null);
 
   const { isMobile } = useBreakpoint();
   const sym = TV_SYMBOLS[symIdx];
@@ -113,6 +115,7 @@ export default function SignalPage() {
     const sensLabel = Number.isInteger(sig.sens)
       ? String(sig.sens)
       : sig.sens.toFixed(1).replace(/\.0$/, "");
+    const pro = proResultRef.current;
     setTgSignal({
       sigTime:    sig.time,
       symbol,
@@ -131,6 +134,11 @@ export default function SignalPage() {
       momentum:   metrics.momentum,
       volatility: metrics.volatility,
       barsSince:  metrics.barsSince,
+      confidence:  pro?.confidence,
+      confLevel:   pro?.confLevel,
+      horizon:     pro?.horizon,
+      divergences: pro?.divergences,
+      resume:      pro?.resume,
     });
   }, []);
 
@@ -158,6 +166,16 @@ export default function SignalPage() {
     setProMetrics(m);
     if (sigDataRef.current) {
       rebuildTgSignal(sigDataRef.current.sig, sigDataRef.current.params, m, sym.label, tf.label);
+    }
+  }, [sym.label, tf.label, rebuildTgSignal]);
+
+  // ── Callback depuis SignalProPanel ────────────────────────────────────────
+  const handleProResult = useCallback((r: SignalProResult) => {
+    proResultRef.current = r;
+    // Rebuild tgSignal with updated pro data if signal is active
+    if (sigDataRef.current && metricsRef.current) {
+      const { sig, params } = sigDataRef.current;
+      rebuildTgSignal(sig, params, metricsRef.current, sym.label, tf.label);
     }
   }, [sym.label, tf.label, rebuildTgSignal]);
 
@@ -311,6 +329,7 @@ export default function SignalPage() {
         pairLabel={sym.label}
         tfLabel={tf.label}
         metrics={proMetrics}
+        onProResult={handleProResult}
       />
 
       {/* ── Note ────────────────────────────────────────────────────────── */}
