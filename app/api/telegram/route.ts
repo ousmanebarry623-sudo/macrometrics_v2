@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const text = body.rawText ?? buildMessage(body);
+    const text = body.rawText ? esc(body.rawText) : buildMessage(body);
     const { httpOk, tgJson } = await sendToTelegram(botToken, chatId, text);
 
     if (!httpOk || !tgJson.ok) {
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ ok: true, messageId: tgJson.result?.message_id });
   } catch (err) {
     console.error("[Telegram] fetch error:", err);
-    return Response.json({ error: `Erreur réseau : ${String(err)}` }, { status: 500 });
+    return Response.json({ error: "Erreur réseau" }, { status: 500 });
   }
 }
 
@@ -223,7 +223,7 @@ export async function GET(req: NextRequest) {
       chats,
       noUpdates:   !updJson.ok || (updJson.result?.length ?? 0) === 0,
     });
-  } catch (err) {
-    return Response.json({ error: String(err) }, { status: 500 });
+  } catch {
+    return Response.json({ error: "Erreur interne" }, { status: 500 });
   }
 }
