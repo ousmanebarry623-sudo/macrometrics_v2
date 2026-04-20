@@ -235,82 +235,70 @@ export function generateResume(
   pairSignal: PairSignal | null,
   regime:     RegimeType | null,
 ): string {
-  if (signal === "NEUTRAL") {
-    return "Signaux techniques et macro insuffisamment alignés — pas de biais directionnel clair. Rester en dehors du marché.";
-  }
+  const isBuy = signal !== "SELL";
 
-  const isBuy = signal === "BUY";
-  const dir   = isBuy ? "haussier" : "baissier";
+  // ── Confirmations techniques ───────────────────────────────────────────────
+  const techOk: string[] = [];
+  const bullTFs = metrics.tfBulls.filter(b => b === true).length;
+  const bearTFs = metrics.tfBulls.filter(b => b === false).length;
+  const tfTotal = metrics.tfBulls.filter(b => b !== null).length || 1;
 
-  // ── Facteurs techniques alignés avec le signal ─────────────────────────────
-  const techConfirm: string[] = [];
   if (isBuy) {
-    if (metrics.position === "Buy")     techConfirm.push("Supertrend ↑");
-    if (metrics.momentum === "Bullish") techConfirm.push("MACD haussier");
-    if (metrics.trend    === "Bullish") techConfirm.push("prix au-dessus EMA200");
-    const bullTFs = metrics.tfBulls.filter(b => b === true).length;
-    const tfTotal = metrics.tfBulls.filter(b => b !== null).length;
-    if (bullTFs >= Math.round(tfTotal * 0.7)) techConfirm.push(`${bullTFs}/${tfTotal} TFs alignés`);
+    if (metrics.position === "Buy")     techOk.push("Supertrend haussier");
+    if (metrics.momentum === "Bullish") techOk.push("momentum MACD haussier");
+    if (metrics.trend    === "Bullish") techOk.push("prix au-dessus EMA200");
+    if (bullTFs >= Math.round(tfTotal * 0.7)) techOk.push(`${bullTFs}/${tfTotal} TFs alignés à la hausse`);
   } else {
-    if (metrics.position === "Sell")    techConfirm.push("Supertrend ↓");
-    if (metrics.momentum === "Bearish") techConfirm.push("MACD baissier");
-    if (metrics.trend    === "Bearish") techConfirm.push("prix sous EMA200");
-    const bearTFs = metrics.tfBulls.filter(b => b === false).length;
-    const tfTotal = metrics.tfBulls.filter(b => b !== null).length;
-    if (bearTFs >= Math.round(tfTotal * 0.7)) techConfirm.push(`${bearTFs}/${tfTotal} TFs alignés`);
+    if (metrics.position === "Sell")    techOk.push("Supertrend baissier");
+    if (metrics.momentum === "Bearish") techOk.push("momentum MACD baissier");
+    if (metrics.trend    === "Bearish") techOk.push("prix sous EMA200");
+    if (bearTFs >= Math.round(tfTotal * 0.7)) techOk.push(`${bearTFs}/${tfTotal} TFs alignés à la baisse`);
   }
 
-  // ── Facteurs macro : on distingue confirmation vs divergence ───────────────
-  const macroConfirm: string[]  = [];
-  const macroDiverge: string[]  = [];
+  // ── Confirmations / divergences macro ─────────────────────────────────────
+  const macroOk: string[]  = [];
+  const macroKo: string[]  = [];
 
   if (pairSignal) {
-    const { institutional, sentiment, seasonality } = pairSignal;
+    const { institutional, seasonality } = pairSignal;
 
     if (institutional.bias !== "Neutral") {
-      const cotAligned = (isBuy && institutional.bias === "Bullish") || (!isBuy && institutional.bias === "Bearish");
-      const cotLabel = `COT institutionnel ${institutional.bias === "Bullish" ? "haussier" : "baissier"}`;
-      cotAligned ? macroConfirm.push(cotLabel) : macroDiverge.push(cotLabel);
-    }
-
-    if (sentiment.extreme) {
-      const retailAligned =
-        (isBuy  && sentiment.longPct < 35) ||
-        (!isBuy && sentiment.longPct > 65);
-      const retailLabel = `retail ${sentiment.longPct}% long (contrarien)`;
-      retailAligned ? macroConfirm.push(retailLabel) : macroDiverge.push(retailLabel);
+      const aligned = (isBuy && institutional.bias === "Bullish") || (!isBuy && institutional.bias === "Bearish");
+      const lbl = `institutionnels ${institutional.bias === "Bullish" ? "acheteurs" : "vendeurs"} (COT)`;
+      aligned ? macroOk.push(lbl) : macroKo.push(lbl);
     }
 
     if (seasonality.bias !== "Neutral") {
-      const seasAligned = (isBuy && seasonality.bias === "Bullish") || (!isBuy && seasonality.bias === "Bearish");
-      const seasLabel = `saisonnalité ${seasonality.month} ${seasonality.bias === "Bullish" ? "favorable" : "défavorable"}`;
-      seasAligned ? macroConfirm.push(seasLabel) : macroDiverge.push(seasLabel);
+      const aligned = (isBuy && seasonality.bias === "Bullish") || (!isBuy && seasonality.bias === "Bearish");
+      const lbl = `saisonnalité ${seasonality.month} ${seasonality.bias === "Bullish" ? "favorable" : "défavorable"}`;
+      aligned ? macroOk.push(lbl) : macroKo.push(lbl);
     }
   }
 
-  if (regime) {
-    const regimeAligned = (isBuy && regime === "RISK_ON") || (!isBuy && regime === "RISK_OFF");
-    if (regimeAligned) macroConfirm.push(`régime ${regime === "RISK_ON" ? "Risk-On" : "Risk-Off"}`);
-    else if (regime !== "MIXED" && regime !== "TRANSITION") macroDiverge.push(`régime ${regime === "RISK_ON" ? "Risk-On" : "Risk-Off"} défavorable`);
+  if (regime === "RISK_ON" || regime === "RISK_OFF") {
+    const aligned = (isBuy && regime === "RISK_ON") || (!isBuy && regime === "RISK_OFF");
+    const lbl = `marché en mode ${regime === "RISK_ON" ? "Risk-On (favorable aux achats)" : "Risk-Off (favorable aux ventes)"}`;
+    aligned ? macroOk.push(lbl) : macroKo.push(lbl);
   }
 
   // ── Construction du résumé ─────────────────────────────────────────────────
-  const techPart = techConfirm.length > 0
-    ? `Structure technique ${dir} : ${techConfirm.join(", ")}`
-    : "Structure technique partiellement alignée";
+  const action = isBuy ? "achat" : "vente";
+  const techSummary = techOk.length > 0
+    ? `Technique : ${techOk.join(", ")}.`
+    : "Technique : signal partiellement confirmé.";
 
-  let macroPart = "";
-  if (macroConfirm.length > 0 && macroDiverge.length === 0) {
-    macroPart = `Macro en accord : ${macroConfirm.join(", ")}.`;
-  } else if (macroConfirm.length > 0 && macroDiverge.length > 0) {
-    macroPart = `Macro : ${macroConfirm.join(", ")} — divergence sur ${macroDiverge.join(", ")}.`;
-  } else if (macroDiverge.length > 0) {
-    macroPart = `⚠️ Divergence macro : ${macroDiverge.join(", ")} — signal à prendre avec prudence.`;
+  let macroSummary = "";
+  if (macroOk.length > 0 && macroKo.length === 0) {
+    macroSummary = ` Macro confirme l'${action} : ${macroOk.join(", ")}.`;
+  } else if (macroOk.length > 0 && macroKo.length > 0) {
+    macroSummary = ` Macro partiellement favorable : ${macroOk.join(", ")}. ⚠️ Points de vigilance : ${macroKo.join(", ")}.`;
+  } else if (macroKo.length > 0) {
+    macroSummary = ` ⚠️ Macro en opposition : ${macroKo.join(", ")} — ${action} contre le vent macro, risque élevé.`;
   } else {
-    macroPart = "Macro neutre — signal purement technique.";
+    macroSummary = " Macro neutre — signal purement technique.";
   }
 
-  return `${techPart}. ${macroPart}`;
+  return `${techSummary}${macroSummary}`;
 }
 
 // ── Fonction principale ───────────────────────────────────────────────────────
@@ -325,8 +313,10 @@ export function computeSignalPro(
   const macroScore      = computeMacroScore(pairSignal, regime);
   const signalProScore  = Math.round(0.55 * technicalScore + 0.45 * macroScore);
 
+  // Direction = indicateur technique (Supertrend) — jamais NEUTRAL ici.
+  // La confiance reflète l'alignement avec la macro, pas la direction.
   const signal: "BUY" | "SELL" | "NEUTRAL" =
-    signalProScore > 60 ? "BUY" : signalProScore < 40 ? "SELL" : "NEUTRAL";
+    metrics.position === "Buy" ? "BUY" : "SELL";
 
   const confidence  = computeConfidence(metrics, technicalScore, macroScore);
   const confLevel: "HIGH" | "MEDIUM" | "LOW" =

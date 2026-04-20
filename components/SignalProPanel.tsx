@@ -157,16 +157,30 @@ export default function SignalProPanel({ pairLabel, tfLabel, metrics, onProResul
 
   useEffect(() => { fetchMacro(); }, [fetchMacro]);
 
-  const lastResultRef = useRef<SignalProResult | null>(null);
+  // Identity of the current signal: pair + direction + barsSince.
+  // Stays constant as long as the same candle is active — macro refreshes don't change it.
+  const signalKey = metrics
+    ? `${pairLabel}:${metrics.position}:${metrics.barsSince ?? 0}`
+    : null;
+
+  // Locked snapshot: captured once when signalKey changes, never updated by macro fluctuations.
+  const lockedRef    = useRef<SignalProResult | null>(null);
+  const lockedKeyRef = useRef<string | null>(null);
 
   const freshResult = metrics ? computeSignalPro(pairLabel, metrics, pairSignal, regime) : null;
-  if (freshResult) lastResultRef.current = freshResult;
-  const result = freshResult ?? lastResultRef.current;
 
+  if (freshResult && signalKey && signalKey !== lockedKeyRef.current) {
+    lockedRef.current    = freshResult;
+    lockedKeyRef.current = signalKey;
+  }
+
+  const result = lockedRef.current;
+
+  // Notify parent only once per unique signal (not on macro data refresh).
   useEffect(() => {
-    if (freshResult && onProResult) onProResult(freshResult);
+    if (result && onProResult) onProResult(result);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [freshResult?.signal, freshResult?.confidence, freshResult?.resume, onProResult]);
+  }, [lockedKeyRef.current, onProResult]);
 
   if (!metrics) return <PanelSkeleton />;
   if (!result) return <PanelSkeleton />;
