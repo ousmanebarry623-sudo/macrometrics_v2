@@ -289,10 +289,9 @@ function buildRetestMsg(m: ServerMonitor, currentPriceStr: string): string {
 
 // ─── Traiter tous les moniteurs persistants ───────────────────────────────────
 async function processMonitors(
-  kv: Awaited<ReturnType<typeof getKv>>,
   monitors: ServerMonitor[],
 ): Promise<{ remaining: ServerMonitor[]; reminders: number; retests: number }> {
-  if (!kv || monitors.length === 0) return { remaining: monitors, reminders: 0, retests: 0 };
+  if (monitors.length === 0) return { remaining: monitors, reminders: 0, retests: 0 };
 
   const REMINDER_MS = 15 * 60 * 1000;
   const now         = Date.now();
@@ -384,7 +383,7 @@ export async function GET(req: NextRequest) {
   let monitorStats = { checked: monitors.length, reminders: 0, retests: 0 };
   let remaining = monitors;
   try {
-    const processed = await processMonitors(kv, monitors);
+    const processed = await processMonitors(monitors);
     remaining = processed.remaining;
     monitorStats = { checked: monitors.length, reminders: processed.reminders, retests: processed.retests };
   } catch (err) {
