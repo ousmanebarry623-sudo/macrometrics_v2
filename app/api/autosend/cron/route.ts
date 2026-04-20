@@ -193,6 +193,7 @@ async function processSymbol(
   const ok = await sendTelegram(cfg.token, cfg.chatId, text);
   if (ok && kv) {
     await kv.set(kvKey, sig.time, { ex: 60 * 60 * 24 * 7 }); // TTL 7 jours
+    await registerMonitor(sym, cfg, kv, sig.type, score, entry, tp1, tp2, tp3, sl, sig.time);
   }
 
   return { sent: ok, score, reason: ok ? "envoyé" : "erreur Telegram" };
@@ -203,6 +204,50 @@ async function fetchLatestPrice(symbol: string): Promise<number | null> {
   const candles = await fetchCandles(symbol, "1m", "1d");
   if (candles.length === 0) return null;
   return candles[candles.length - 1].close;
+}
+
+// ─── Enregistrer un moniteur persistant après envoi du signal ────────────────
+async function registerMonitor(
+  sym: WatchedSymbol,
+  cfg: AutosendConfig,
+  kv: NonNullable<Awaited<ReturnType<typeof getKv>>>,
+  type: "buy" | "sell",
+  score: string,
+  entry: number,
+  tp1: number,
+  tp2: number,
+  tp3: number,
+  sl: number,
+  sigTime: number,
+): Promise<void> {
+  const monitors = await kv.get<ServerMonitor[]>("signal_monitors") ?? [];
+  // Une seule surveillance active par paire+TF — remplace si déjà présente
+  const filtered = monitors.filter(
+    m => !(m.yf === sym.yf && m.tfLabel === sym.tfLabel),
+  );
+  const now = Date.now();
+  const monitor: ServerMonitor = {
+    id:             `${sym.yf}:${sym.tfLabel}:${sigTime}`,
+    yf:             sym.yf,
+    label:          sym.label,
+    tfLabel:        sym.tfLabel,
+    type,
+    entryPrice:     entry,
+    score,
+    fEntry:         fmtPrice(entry, sym.yf),
+    fTp1:           fmtPrice(tp1,   sym.yf),
+    fTp2:           fmtPrice(tp2,   sym.yf),
+    fTp3:           fmtPrice(tp3,   sym.yf),
+    fSl:            fmtPrice(sl,    sym.yf),
+    sigTime,
+    addedAt:        now,
+    lastReminderAt: now,
+    reminderCount:  0,
+    token:          cfg.token,
+    chatId:         cfg.chatId,
+  };
+  await kv.set("signal_monitors", [...filtered, monitor]);
+  console.log(`[Cron] Monitor enregistré : ${monitor.id}`);
 }
 
 // ─── Détection de retest ──────────────────────────────────────────────────────
