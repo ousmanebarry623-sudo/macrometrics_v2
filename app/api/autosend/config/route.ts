@@ -23,6 +23,15 @@ export interface AutosendConfig {
 
 const KV_KEY = "autosend_config";
 
+// ─── Auth helper ──────────────────────────────────────────────────────────────
+function checkAdmin(req: NextRequest): Response | null {
+  const adminSecret = process.env.ADMIN_SECRET;
+  if (!adminSecret) return Response.json({ error: "ADMIN_SECRET non configuré" }, { status: 503 });
+  const auth = req.headers.get("authorization");
+  if (auth !== `Bearer ${adminSecret}`) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  return null;
+}
+
 // ─── Helper Redis ─────────────────────────────────────────────────────────────
 async function getKv() {
   const { kv, isRedisConfigured } = await import("@/lib/redis");
@@ -46,18 +55,20 @@ export async function GET() {
     return Response.json({
       configured: true,
       enabled:    cfg.enabled,
-      chatId:     cfg.chatId,
+      chatIdHint: "…" + cfg.chatId.slice(-4),
       tokenHint:  cfg.token.slice(0, 8) + "…",
       symbols:    cfg.symbols,
       updatedAt:  cfg.updatedAt,
     });
-  } catch (err) {
-    return Response.json({ error: String(err) }, { status: 500 });
+  } catch {
+    return Response.json({ error: "Erreur interne" }, { status: 500 });
   }
 }
 
 // ─── POST : sauvegarder / mettre à jour la config ────────────────────────────
 export async function POST(req: NextRequest) {
+  const denied = checkAdmin(req);
+  if (denied) return denied;
   const kv = await getKv();
   if (!kv) {
     return Response.json(
@@ -89,7 +100,9 @@ export async function POST(req: NextRequest) {
 }
 
 // ─── DELETE : désactiver / supprimer la config ────────────────────────────────
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
+  const denied = checkAdmin(req);
+  if (denied) return denied;
   const kv = await getKv();
   if (!kv) return Response.json({ error: "Redis non configuré" }, { status: 503 });
   await kv.del(KV_KEY);

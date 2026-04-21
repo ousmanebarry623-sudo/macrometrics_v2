@@ -132,18 +132,54 @@ async function sendTelegram(token: string, chatId: string, text: string): Promis
   return json.ok;
 }
 
+// ─── Construire un moniteur (sans écriture KV) ────────────────────────────────
+function buildMonitor(
+  sym: WatchedSymbol,
+  cfg: AutosendConfig,
+  type: "buy" | "sell",
+  score: string,
+  entry: number,
+  tp1: number,
+  tp2: number,
+  tp3: number,
+  sl: number,
+  sigTime: number,
+): ServerMonitor {
+  const now = Date.now();
+  return {
+    id:             `${sym.yf}:${sym.tfLabel}:${sigTime}`,
+    yf:             sym.yf,
+    label:          sym.label,
+    tfLabel:        sym.tfLabel,
+    type,
+    entryPrice:     entry,
+    score,
+    fEntry:         fmtPrice(entry, sym.yf),
+    fTp1:           fmtPrice(tp1,   sym.yf),
+    fTp2:           fmtPrice(tp2,   sym.yf),
+    fTp3:           fmtPrice(tp3,   sym.yf),
+    fSl:            fmtPrice(sl,    sym.yf),
+    sigTime,
+    addedAt:        now,
+    lastReminderAt: now,
+    reminderCount:  0,
+    token:          cfg.token,
+    chatId:         cfg.chatId,
+  };
+}
+
 // ─── Traiter un symbole : fetch + compute + envoi si nouveau signal ───────────
 async function processSymbol(
   sym: WatchedSymbol,
   cfg: AutosendConfig,
   kv: Awaited<ReturnType<typeof getKv>>,
-): Promise<{ sent: boolean; score: string | null; reason: string }> {
+): Promise<{ sent: boolean; score: string | null; reason: string; newMonitor: ServerMonitor | null }> {
   // Résoudre l'interval/range/factor depuis le label TF
   const tfInfo = TF_MAP[sym.tfLabel] ?? { interval: sym.interval, range: sym.range, factor: 1 };
 
   // Fetch candles
   let candles = await fetchCandles(sym.yf, tfInfo.interval, tfInfo.range);
-  if (candles.length < 20) return { sent: false, score: null, reason: "pas assez de données" };
+  if (candles.length < 20) return { sent: false, score: null, reason: "pas assez de données", newMonitor: null };
 
   // Agréger si besoin (ex: 60m → 4H)
   if (tfInfo.factor > 1) {
@@ -152,13 +188,13 @@ async function processSymbol(
 
   // Calculer le dashboard
   const dash = computeDash(candles);
-  if (!dash || !dash.lastSignal) return { sent: false, score: null, reason: "aucun signal trouvé" };
+  if (!dash || !dash.lastSignal) return { sent: false, score: null, reason: "aucun signal trouvé", newMonitor: null };
 
   const sig = dash.lastSignal;
 
   // Ignorer les signaux trop anciens (> 3 bougies) — évite d'envoyer des signaux historiques
   if (dash.barsSince > 3) {
-    return { sent: false, score: null, reason: `signal trop ancien (${dash.barsSince} bougies)` };
+    return { sent: false, score: null, reason: `signal trop ancien (${dash.barsSince} bougies)`, newMonitor: null };
   }
 
   // Vérifier si ce signal a déjà été envoyé
@@ -166,7 +202,7 @@ async function processSymbol(
   const lastSentTime = kv ? await kv.get<number>(kvKey) : null;
 
   if (lastSentTime !== null && lastSentTime >= sig.time) {
-    return { sent: false, score: null, reason: `déjà envoyé (sigTime=${sig.time})` };
+    return { sent: false, score: null, reason: `déjà envoyé (sigTime=${sig.time})`, newMonitor: null };
   }
 
   // Calculer les niveaux TP/SL
@@ -194,8 +230,8 @@ async function processSymbol(
   if (ok && kv) {
     await kv.set(kvKey, sig.time, { ex: 60 * 60 * 24 * 7 }); // TTL 7 jours
   }
-
-  return { sent: ok, score, reason: ok ? "envoyé" : "erreur Telegram" };
+  const newMonitor = ok ? buildMonitor(sym, cfg, sig.type, score, entry, tp1, tp2, tp3, sl, sig.time) : null;
+  return { sent: ok, score, reason: ok ? "envoyé" : "erreur Telegram", newMonitor };
 }
 
 // ─── Récupérer le dernier prix Yahoo Finance ──────────────────────────────────
@@ -204,6 +240,7 @@ async function fetchLatestPrice(symbol: string): Promise<number | null> {
   if (candles.length === 0) return null;
   return candles[candles.length - 1].close;
 }
+
 
 // ─── Détection de retest ──────────────────────────────────────────────────────
 const RETEST_TOL = 0.0015; // ±0.15%
@@ -252,12 +289,9 @@ function buildRetestMsg(m: ServerMonitor, currentPriceStr: string): string {
 
 // ─── Traiter tous les moniteurs persistants ───────────────────────────────────
 async function processMonitors(
-  kv: Awaited<ReturnType<typeof getKv>>,
-): Promise<{ checked: number; reminders: number; retests: number }> {
-  if (!kv) return { checked: 0, reminders: 0, retests: 0 };
-
-  const monitors = await kv.get<ServerMonitor[]>("signal_monitors") ?? [];
-  if (monitors.length === 0) return { checked: 0, reminders: 0, retests: 0 };
+  monitors: ServerMonitor[],
+): Promise<{ remaining: ServerMonitor[]; reminders: number; retests: number }> {
+  if (monitors.length === 0) return { remaining: monitors, reminders: 0, retests: 0 };
 
   const REMINDER_MS = 15 * 60 * 1000;
   const now         = Date.now();
@@ -294,12 +328,9 @@ async function processMonitors(
     }
   }
 
-  // Sauvegarder la liste mise à jour (sans les moniteurs terminés par retest)
+  // Retourner la liste mise à jour (sans les moniteurs terminés par retest)
   const updated = remaining.filter(m => !toRemove.includes(m.id));
-  await kv.set("signal_monitors", updated);
-
-  console.log(`[Cron/Monitors] checked=${monitors.length} reminders=${reminders} retests=${retests}`);
-  return { checked: monitors.length, reminders, retests };
+  return { remaining: updated, reminders, retests };
 }
 
 // ─── HANDLER CRON ─────────────────────────────────────────────────────────────
@@ -308,7 +339,7 @@ export async function GET(req: NextRequest) {
   // En prod, vérifier que la requête vient bien de Vercel
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -324,23 +355,44 @@ export async function GET(req: NextRequest) {
   if (!cfg.token || !cfg.chatId) return Response.json({ skipped: true, reason: "token/chatId manquant" });
   if (!cfg.symbols || cfg.symbols.length === 0) return Response.json({ skipped: true, reason: "aucun symbole configuré" });
 
+  // Load monitors once
+  let monitors = await kv.get<ServerMonitor[]>("signal_monitors") ?? [];
+
   // Traiter chaque symbole autosend
   const results: Record<string, { sent: boolean; score: string | null; reason: string }> = {};
+  const newMonitors: ServerMonitor[] = [];
   for (const sym of cfg.symbols) {
     try {
-      results[`${sym.label}-${sym.tfLabel}`] = await processSymbol(sym, cfg, kv);
+      const r = await processSymbol(sym, cfg, kv);
+      results[`${sym.label}-${sym.tfLabel}`] = { sent: r.sent, score: r.score, reason: r.reason };
+      if (r.newMonitor) {
+        // Dedup: remove existing monitor for same pair+TF, add new one
+        monitors = monitors.filter(m => !(m.yf === r.newMonitor!.yf && m.tfLabel === r.newMonitor!.tfLabel));
+        newMonitors.push(r.newMonitor);
+        console.log(`[Cron] Monitor enregistré : ${r.newMonitor.id}`);
+      }
     } catch (err) {
       results[`${sym.label}-${sym.tfLabel}`] = { sent: false, score: null, reason: String(err) };
     }
   }
 
-  // Traiter les moniteurs persistants (rappels + retest)
-  let monitorStats = { checked: 0, reminders: 0, retests: 0 };
+  // Merge new monitors in
+  monitors = [...monitors, ...newMonitors];
+
+  // Traiter les moniteurs persistants (rappels + retest) — retourne la liste mise à jour
+  let monitorStats = { checked: monitors.length, reminders: 0, retests: 0 };
+  let remaining = monitors;
   try {
-    monitorStats = await processMonitors(kv);
+    const processed = await processMonitors(monitors);
+    remaining = processed.remaining;
+    monitorStats = { checked: monitors.length, reminders: processed.reminders, retests: processed.retests };
   } catch (err) {
     console.error("[Cron/Monitors] Erreur:", err);
   }
+
+  // Single write to KV
+  await kv.set("signal_monitors", remaining, { ex: 60 * 60 * 24 * 30 });
+  console.log(`[Cron/Monitors] checked=${monitorStats.checked} reminders=${monitorStats.reminders} retests=${monitorStats.retests}`);
 
   console.log("[Cron] Résultats:", JSON.stringify(results));
   return Response.json({ ok: true, results, monitors: monitorStats, ts: Date.now() });

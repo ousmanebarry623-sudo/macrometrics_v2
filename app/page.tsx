@@ -5,6 +5,7 @@ import RetailSentimentCard from "@/components/RetailSentimentCard";
 import SeasonalityG8 from "@/components/SeasonalityG8";
 import CentralBanksCard from "@/components/CentralBanksCard";
 import ResponsiveRow1 from "@/components/ResponsiveRow1";
+import MarketRegimeDetector from "@/components/MarketRegimeDetector";
 
 export default function HomePage() {
   const parisDate = new Date().toLocaleDateString("fr-FR", {
@@ -31,7 +32,12 @@ export default function HomePage() {
 
       <QuickLinks />
 
-      {/* Row 1: Biais Journalier + Fear&Greed + Sessions */}
+      {/* Market Regime Detector — macro overview at the top */}
+      <div style={{ marginBottom: 16 }}>
+        <MarketRegimeDetector />
+      </div>
+
+      {/* Row 1: Biais Journalier + Sessions */}
       <ResponsiveRow1 />
 
       {/* Row 2: G8 Overview full width */}

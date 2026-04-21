@@ -1,10 +1,40 @@
 // Shared MyFXBook Community Outlook logic
-// Cache module-level + Redis partagé entre toutes les routes serverless
+// Cache module-level + Redis partage entre toutes les routes serverless
 
 import { kv } from "@/lib/redis";
 
 const REDIS_KEY = "mfxbook:sentiment";
-const REDIS_TTL = 15 * 60; // 15 minutes en secondes
+const REDIS_TS_KEY = "mfxbook:sentiment:ts";
+const REDIS_TTL = 15 * 60;
+const STALE_THRESHOLD_MS = 15 * 60 * 1000;
+
+export type MfxSource =
+  | "module-cache"
+  | "redis"
+  | "auth"
+  | "public-api"
+  | "scrape-json"
+  | "scrape-html"
+  | "dukascopy"
+  | "none";
+
+export interface MfxResult {
+  data: Record<string, number>;
+  source: MfxSource;
+  ts: number;
+  stale: boolean;
+  error?: string;
+}
+
+export interface MfxStatus {
+  lastSource: MfxSource;
+  lastFetchTs: number;
+  cacheAgeMs: number;
+  hasSession: boolean;
+  sessionExpiresInMs: number | null;
+  redisConfigured: boolean;
+  pairsCount: number;
+}
 
 export const MFX_PAIR_MAP: Record<string, string> = {
   EURUSD:"EUR/USD", GBPUSD:"GBP/USD", USDJPY:"USD/JPY", USDCHF:"USD/CHF",
@@ -22,15 +52,13 @@ export function mfxFormatPair(key: string): string {
   return MFX_PAIR_MAP[key.toUpperCase()] ?? key.replace(/([A-Z]{3})([A-Z]{3})/, "$1/$2");
 }
 
-// ── Cache module-level (partagé) ─────────────────────────────────────────────
-// pair → longPct (ex: "EUR/USD" → 23)
 let mapCache: { data: Record<string, number>; ts: number } | null = null;
-const MAP_TTL = 15 * 60 * 1000; // 15 min
+const MAP_TTL = 15 * 60 * 1000;
 
-// Session auth MyFXBook
 let mfxSession: { id: string; expiry: number } | null = null;
 
-// ── Auth avec credentials env ─────────────────────────────────────────────────
+let lastMeta: { source: MfxSource; ts: number } = { source: "none", ts: 0 };
+
 async function getMfxSession(): Promise<string | null> {
   if (mfxSession && Date.now() < mfxSession.expiry) return mfxSession.id;
   const email    = process.env.MYFXBOOK_EMAIL;
@@ -65,43 +93,72 @@ function parseSymbols(symbols: unknown): Record<string, number> {
   return result;
 }
 
-// ── Fetch principal : Redis → auth → API public → scrape HTML ────────────────
-// Retourne Record<pair, longPct> ex: { "EUR/USD": 23, "GBP/USD": 43, ... }
-export async function fetchMyfxbookMap(): Promise<Record<string, number>> {
-  // Cache module-level (warm instance)
-  if (mapCache && Date.now() - mapCache.ts < MAP_TTL) return mapCache.data;
-
-  // Cache Redis partagé (survit aux nouvelles invocations serverless)
-  try {
-    const cached = await kv.get<Record<string, number>>(REDIS_KEY);
-    if (cached && Object.keys(cached).length > 0) {
-      mapCache = { data: cached, ts: Date.now() };
-      return cached;
-    }
-  } catch { /* Redis indisponible → continuer */ }
-
-  // Tentative 1 : Auth avec credentials
-  try {
+async function tryAuthFetch(): Promise<Record<string, number> | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
     const session = await getMfxSession();
-    if (session) {
+    if (!session) return null;
+    try {
       const res  = await fetch(
         `https://www.myfxbook.com/api/get-community-outlook.json?session=${session}`,
         { cache: "no-store", signal: AbortSignal.timeout(10000) }
       );
       const data = await res.json();
-      if (!data.error && data.symbols) {
-        const result = parseSymbols(data.symbols);
-        if (Object.keys(result).length > 0) {
-          mapCache = { data: result, ts: Date.now() };
-          kv.set(REDIS_KEY, result, { ex: REDIS_TTL }).catch(() => {});
-          return result;
-        }
+      const sessionErr = data?.error && typeof data.message === "string" &&
+        /session|login|auth/i.test(data.message);
+      if (sessionErr && attempt === 0) {
+        mfxSession = null;
+        continue;
       }
+      if (!data.error && data.symbols) {
+        const parsed = parseSymbols(data.symbols);
+        if (Object.keys(parsed).length > 0) return parsed;
+      }
+      if (data.error) mfxSession = null;
+      return null;
+    } catch {
       mfxSession = null;
+      return null;
     }
-  } catch { mfxSession = null; }
+  }
+  return null;
+}
 
-  // Tentative 2 : API sans session (parfois publique)
+export async function fetchMyfxbookMapWithMeta(): Promise<MfxResult> {
+  const now = Date.now();
+
+  if (mapCache && now - mapCache.ts < MAP_TTL) {
+    return {
+      data: mapCache.data,
+      source: "module-cache",
+      ts: mapCache.ts,
+      stale: false,
+    };
+  }
+
+  let redisFallback: MfxResult | null = null;
+  try {
+    const cached = await kv.get<Record<string, number>>(REDIS_KEY);
+    const ts = (await kv.get<number>(REDIS_TS_KEY)) ?? 0;
+    if (cached && Object.keys(cached).length > 0) {
+      mapCache = { data: cached, ts: ts || now };
+      const age = now - (ts || now);
+      if (age < STALE_THRESHOLD_MS) {
+        lastMeta = { source: "redis", ts: ts || now };
+        return { data: cached, source: "redis", ts: ts || now, stale: false };
+      }
+      redisFallback = { data: cached, source: "redis", ts: ts || now, stale: true };
+    }
+  } catch { /* Redis indisponible */ }
+
+  const authResult = await tryAuthFetch();
+  if (authResult) {
+    mapCache = { data: authResult, ts: now };
+    lastMeta = { source: "auth", ts: now };
+    kv.set(REDIS_KEY, authResult, { ex: REDIS_TTL }).catch(() => {});
+    kv.set(REDIS_TS_KEY, now, { ex: REDIS_TTL }).catch(() => {});
+    return { data: authResult, source: "auth", ts: now, stale: false };
+  }
+
   try {
     const apiRes = await fetch(
       "https://www.myfxbook.com/api/get-community-outlook.json",
@@ -116,15 +173,16 @@ export async function fetchMyfxbookMap(): Promise<Record<string, number>> {
       if (apiData && !apiData.error && apiData.symbols) {
         const result = parseSymbols(apiData.symbols);
         if (Object.keys(result).length > 0) {
-          mapCache = { data: result, ts: Date.now() };
+          mapCache = { data: result, ts: now };
+          lastMeta = { source: "public-api", ts: now };
           kv.set(REDIS_KEY, result, { ex: REDIS_TTL }).catch(() => {});
-          return result;
+          kv.set(REDIS_TS_KEY, now, { ex: REDIS_TTL }).catch(() => {});
+          return { data: result, source: "public-api", ts: now, stale: false };
         }
       }
     }
   } catch { /* continue */ }
 
-  // Tentative 3 : Scrape page HTML
   try {
     const pageRes = await fetch("https://www.myfxbook.com/community/outlook", {
       headers: {
@@ -154,14 +212,15 @@ export async function fetchMyfxbookMap(): Promise<Record<string, number>> {
           if (!Array.isArray(arr) || arr.length === 0) continue;
           const result = parseSymbols(arr);
           if (Object.keys(result).length > 0) {
-            mapCache = { data: result, ts: Date.now() };
+            mapCache = { data: result, ts: now };
+            lastMeta = { source: "scrape-json", ts: now };
             kv.set(REDIS_KEY, result, { ex: REDIS_TTL }).catch(() => {});
-            return result;
+            kv.set(REDIS_TS_KEY, now, { ex: REDIS_TTL }).catch(() => {});
+            return { data: result, source: "scrape-json", ts: now, stale: false };
           }
         } catch { continue; }
       }
 
-      // Tentative 4 : Parser les % directement dans le HTML
       const KNOWN_PAIRS = [
         "EURUSD","GBPUSD","USDJPY","USDCHF","USDCAD","AUDUSD","NZDUSD",
         "EURGBP","EURJPY","EURCHF","EURCAD","EURAUD","EURNZD",
@@ -183,20 +242,88 @@ export async function fetchMyfxbookMap(): Promise<Record<string, number>> {
         }
       }
       if (Object.keys(result).length > 0) {
-        mapCache = { data: result, ts: Date.now() };
+        mapCache = { data: result, ts: now };
+        lastMeta = { source: "scrape-html", ts: now };
         kv.set(REDIS_KEY, result, { ex: REDIS_TTL }).catch(() => {});
-        return result;
+        kv.set(REDIS_TS_KEY, now, { ex: REDIS_TTL }).catch(() => {});
+        return { data: result, source: "scrape-html", ts: now, stale: false };
       }
     }
   } catch { /* silently fail */ }
 
-  return {};
+  // ── Dukascopy SWFX fallback (public, no auth) ──────────────────────────────
+  const DUKA_PAIRS = [
+    "EURUSD","GBPUSD","USDJPY","USDCHF","USDCAD","AUDUSD","NZDUSD",
+    "EURGBP","EURJPY","EURCHF","EURCAD","EURAUD","EURNZD",
+    "GBPJPY","GBPCHF","GBPCAD","GBPAUD","GBPNZD",
+    "AUDJPY","AUDCAD","AUDNZD","NZDJPY","CADJPY","CHFJPY",
+    "XAUUSD","XAGUSD",
+  ];
+  try {
+    const dukaResults = await Promise.allSettled(
+      DUKA_PAIRS.map(sym =>
+        fetch(`https://freeserv.dukascopy.com/2.0/?path=swfx/sentiment&instrument=${sym}&format=json`, {
+          cache: "no-store",
+          headers: { "User-Agent": "Mozilla/5.0" },
+          signal: AbortSignal.timeout(6000),
+        })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => ({ sym, longPct: d?.buyVolume != null ? Math.round(d.buyVolume * 100) : null }))
+        .catch(() => ({ sym, longPct: null }))
+      )
+    );
+    const dukaMap: Record<string, number> = {};
+    for (const r of dukaResults) {
+      if (r.status === "fulfilled" && r.value.longPct !== null) {
+        dukaMap[mfxFormatPair(r.value.sym)] = r.value.longPct;
+      }
+    }
+    if (Object.keys(dukaMap).length >= 5) {
+      mapCache = { data: dukaMap, ts: now };
+      lastMeta = { source: "dukascopy", ts: now };
+      kv.set(REDIS_KEY, dukaMap, { ex: REDIS_TTL }).catch(() => {});
+      kv.set(REDIS_TS_KEY, now, { ex: REDIS_TTL }).catch(() => {});
+      return { data: dukaMap, source: "dukascopy", ts: now, stale: false };
+    }
+  } catch { /* continue */ }
+
+  if (redisFallback) {
+    lastMeta = { source: "redis", ts: redisFallback.ts };
+    return { ...redisFallback, error: "all-sources-failed" };
+  }
+
+  return {
+    data: {},
+    source: "none",
+    ts: now,
+    stale: true,
+    error: "all-sources-failed",
+  };
 }
 
-// Force invalidation du cache (utile depuis retail-sentiment après un fetch réussi)
+export async function fetchMyfxbookMap(): Promise<Record<string, number>> {
+  const result = await fetchMyfxbookMapWithMeta();
+  return result.data;
+}
+
 export function setMyfxbookCache(data: Record<string, number>): void {
   if (Object.keys(data).length > 0) {
-    mapCache = { data, ts: Date.now() };
+    const now = Date.now();
+    mapCache = { data, ts: now };
     kv.set(REDIS_KEY, data, { ex: REDIS_TTL }).catch(() => {});
+    kv.set(REDIS_TS_KEY, now, { ex: REDIS_TTL }).catch(() => {});
   }
+}
+
+export function getMyfxbookStatus(): MfxStatus {
+  const now = Date.now();
+  return {
+    lastSource: lastMeta.source,
+    lastFetchTs: lastMeta.ts,
+    cacheAgeMs: mapCache ? now - mapCache.ts : -1,
+    hasSession: !!mfxSession,
+    sessionExpiresInMs: mfxSession ? Math.max(0, mfxSession.expiry - now) : null,
+    redisConfigured: !!process.env.REDIS_URL,
+    pairsCount: mapCache ? Object.keys(mapCache.data).length : 0,
+  };
 }
