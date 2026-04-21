@@ -94,30 +94,35 @@ export async function GET() {
         "https://www.forexlive.com/feed/news",
         "ForexLive", "Forex", 15
       ),
-      // ── FXStreet — via Google News (RSS direct bloqué depuis Vercel) ───────
+      // ── Reuters Business News ─────────────────────────────────────────────
       parseRSS(
-        "https://news.google.com/rss/search?q=fxstreet+forex+news+analysis&ceid=US:en&when=7d",
-        "FXStreet", "Forex", 12
+        "https://feeds.reuters.com/reuters/businessNews",
+        "Reuters", "Markets", 10
       ),
-      // ── DailyFX — source forex fiable ────────────────────────────────────
+      // ── Reuters via Google News (fallback) ───────────────────────────────
       parseRSS(
-        "https://www.dailyfx.com/feeds/all",
-        "DailyFX", "Forex", 10
+        "https://news.google.com/rss/search?q=reuters+forex+central+bank+interest+rate+dollar&ceid=US:en&when=3d",
+        "Reuters", "Markets", 8
       ),
-      // ── Markets — Google News macro économique (7j) ─────────────────────────
+      // ── Fed / BCE / BoJ — Google News (3j) ───────────────────────────────
       parseRSS(
-        "https://news.google.com/rss/search?q=forex+market+Fed+ECB+central+bank+interest+rates&ceid=US:en&when=7d",
+        "https://news.google.com/rss/search?q=Fed+ECB+BoJ+central+bank+interest+rates+forex&ceid=US:en&when=3d",
         "Google News", "Markets", 12
       ),
-      // ── Markets fallback — dollar, politique monétaire (7j) ─────────────────
+      // ── Dollar / Euro / Gold — Google News (3j) ──────────────────────────
       parseRSS(
-        "https://news.google.com/rss/search?q=dollar+euro+yen+monetary+policy+inflation+economy&ceid=US:en&when=7d",
+        "https://news.google.com/rss/search?q=dollar+euro+yen+gold+XAU+monetary+policy+inflation&ceid=US:en&when=3d",
         "Google News", "Markets", 10
       ),
-      // ── Forex général — paires majeures (7j) ────────────────────────────────
+      // ── Forex paires majeures — Google News (3j) ─────────────────────────
       parseRSS(
-        "https://news.google.com/rss/search?q=EUR+USD+GBP+JPY+forex+currency+trading&ceid=US:en&when=7d",
+        "https://news.google.com/rss/search?q=EUR+USD+GBP+JPY+forex+currency+trading+analysis&ceid=US:en&when=3d",
         "Google News", "Forex", 10
+      ),
+      // ── FXStreet via Google News ──────────────────────────────────────────
+      parseRSS(
+        "https://news.google.com/rss/search?q=site:fxstreet.com+forex+analysis&ceid=US:en&when=3d",
+        "FXStreet", "Forex", 10
       ),
     ]);
 

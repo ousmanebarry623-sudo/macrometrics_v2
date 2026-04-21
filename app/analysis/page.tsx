@@ -475,12 +475,22 @@ export default function AnalysisPage() {
   const load = useCallback(async (force=false) => {
     setLoading(true); setError("");
     try {
-      const r = await fetch(force ? "/api/signal-analysis?force=1" : "/api/signal-analysis", { cache:"no-store" });
-      if (!r.ok) throw new Error("API error");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
+      const r = await fetch(force ? "/api/signal-analysis?force=1" : "/api/signal-analysis", {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!r.ok) throw new Error(`Erreur serveur (${r.status})`);
       const d: PairSignal[] = await r.json();
       setData(d); setLastFetch(new Date());
     } catch(e: unknown) {
-      setError(e instanceof Error ? e.message : "Erreur");
+      if (e instanceof Error && e.name === "AbortError") {
+        setError("Délai dépassé (25s) — les sources COT ou macro sont lentes. Réessayez.");
+      } else {
+        setError(e instanceof Error ? e.message : "Erreur inconnue");
+      }
     }
     setLoading(false);
   }, []);
@@ -669,7 +679,15 @@ export default function AnalysisPage() {
         })()}
 
         {/* Error/Loading */}
-        {error && <div style={{ padding:24, textAlign:"center", color:"#ef4444", fontSize:13 }}>⚠ {error}</div>}
+        {error && (
+          <div style={{ padding:24, background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, margin:"8px 0" }}>
+            <div style={{ color:"#ef4444", fontSize:13, fontWeight:600, marginBottom:8 }}>⚠ Erreur de chargement</div>
+            <div style={{ color:"#94a3b8", fontSize:12, marginBottom:12 }}>{error}</div>
+            <button onClick={() => load(true)} style={{ fontSize:11, fontWeight:700, padding:"5px 14px", borderRadius:6, cursor:"pointer", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", color:"#ef4444" }}>
+              ↻ Réessayer
+            </button>
+          </div>
+        )}
         {loading && !data.length && (
           <div style={{ padding:48, textAlign:"center", color:"#475569", fontSize:13 }}>
             <span style={{ animation:"spin 1s linear infinite", display:"inline-block", marginRight:8 }}>⟳</span>
