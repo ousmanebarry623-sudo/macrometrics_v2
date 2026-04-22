@@ -1,13 +1,24 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
-interface Article { title: string; link: string; pubDate: string; source: string; category: string; summary?: string; }
+interface Article {
+  title: string;
+  link: string;
+  pubDate: string;
+  source: string;
+  category: string;
+  summary?: string;
+  currencies?: string[];
+}
+
+interface Theme { keyword: string; count: number; }
 
 const SOURCE_COLORS: Record<string, string> = {
   "FXStreet":    "#06b6d4",
   "ForexLive":   "#22c55e",
   "DailyFX":     "#818cf8",
   "Google News": "#475569",
+  "Reuters":     "#ef4444",
 };
 
 function timeAgo(dateStr: string) {
@@ -15,39 +26,71 @@ function timeAgo(dateStr: string) {
   try {
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m`;
+    if (mins < 1) return "à l'instant";
+    if (mins < 60) return `il y a ${mins}m`;
     const h = Math.floor(mins / 60);
-    if (h < 24) return `${h}h`;
-    return `${Math.floor(h / 24)}j`;
+    if (h < 24) return `il y a ${h}h`;
+    return `il y a ${Math.floor(h / 24)}j`;
   } catch { return ""; }
 }
 
 const CATEGORIES = ["Tous", "Forex", "Markets"];
+const CURRENCY_FILTERS = ["Tous", "EUR", "USD", "GBP", "JPY", "CAD", "AUD", "NZD", "CHF", "XAU"];
 const PAGE_SIZE = 10;
 
-export default function FundamentalFeed({ limit }: { limit?: number }) {
+export default function FundamentalFeed({ limit, showThemes = false }: { limit?: number; showThemes?: boolean }) {
   const [articles, setArticles] = useState<Article[]>([]);
+  const [themes, setThemes] = useState<Theme[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [cat, setCat] = useState("Tous");
+  const [curFilter, setCurFilter] = useState("Tous");
+  const [themeFilter, setThemeFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [page, setPage] = useState(1);
+  const [fetchedAt, setFetchedAt] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchNews = () => {
-      fetch("/api/news").then(r => r.json())
-        .then(d => { setArticles(d); setLoading(false); })
-        .catch(() => setLoading(false));
-    };
-    fetchNews();
-    // Refetch every 10 minutes for real-time updates
-    const interval = setInterval(fetchNews, 10 * 60 * 1000);
-    return () => clearInterval(interval);
+  const fetchNews = useCallback(() => {
+    setLoading(true);
+    setError("");
+    fetch("/api/news", { cache: "no-store" })
+      .then(r => r.json())
+      .then(d => {
+        // Handle both old format (array) and new format (object with articles)
+        if (Array.isArray(d)) {
+          setArticles(d);
+          setThemes([]);
+        } else {
+          setArticles(d.articles || []);
+          setThemes(d.themes || []);
+          setFetchedAt(d.fetchedAt || null);
+          if (d.error) setError(d.error);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Erreur de chargement des news");
+        setLoading(false);
+      });
   }, []);
 
-  // Reset to page 1 when filter changes
-  useEffect(() => { setPage(1); setExpanded(null); }, [cat]);
+  useEffect(() => {
+    fetchNews();
+    // Refetch every 15 minutes for news
+    const interval = setInterval(fetchNews, 15 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchNews]);
 
-  const filtered = cat === "Tous" ? articles : articles.filter(a => a.category === cat || a.source === cat);
+  // Reset to page 1 when filter changes
+  useEffect(() => { setPage(1); setExpanded(null); }, [cat, curFilter, themeFilter]);
+
+  const filtered = articles.filter(a => {
+    const catOk = cat === "Tous" || a.category === cat || a.source === cat;
+    const curOk = curFilter === "Tous" || (a.currencies && a.currencies.includes(curFilter));
+    const themeOk = !themeFilter || `${a.title} ${a.summary ?? ""}`.toLowerCase().includes(themeFilter.toLowerCase());
+    return catOk && curOk && themeOk;
+  });
+
   const pool = limit ? filtered.slice(0, limit) : filtered;
   const totalPages = Math.ceil(pool.length / PAGE_SIZE);
   const paginated = pool.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -57,15 +100,25 @@ export default function FundamentalFeed({ limit }: { limit?: number }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
         <div>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Analyse Fondamentale</h3>
-          <p style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>FXStreet · ForexLive · Markets</p>
+          <p style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>
+            ForexLive · FXStreet · Reuters · Google News
+            {fetchedAt && <span style={{ marginLeft: 8 }}>· MAJ {timeAgo(fetchedAt)}</span>}
+          </p>
         </div>
-        <span style={{ fontSize: 10, color: "#f97316", background: "rgba(249,115,22,0.1)", padding: "2px 8px", borderRadius: 999, border: "1px solid rgba(249,115,22,0.2)" }}>
-          {pool.length} articles
-        </span>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <span style={{ fontSize: 10, color: "#f97316", background: "rgba(249,115,22,0.1)", padding: "2px 8px", borderRadius: 999, border: "1px solid rgba(249,115,22,0.2)" }}>
+            {pool.length} articles
+          </span>
+          <button onClick={fetchNews} disabled={loading} style={{
+            fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, cursor: "pointer",
+            background: "rgba(240,200,74,0.08)", border: "1px solid rgba(240,200,74,0.25)", color: "#f0c84a",
+            opacity: loading ? 0.5 : 1,
+          }}>↻</button>
+        </div>
       </div>
 
       {/* Category + source filters */}
-      <div style={{ display: "flex", gap: 5, marginBottom: 14, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 5, marginBottom: 10, flexWrap: "wrap" }}>
         {CATEGORIES.map(c => (
           <button key={c} onClick={() => setCat(c)} style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 6, cursor: "pointer",
             background: cat === c ? "rgba(212,175,55,0.12)" : "transparent",
@@ -74,7 +127,7 @@ export default function FundamentalFeed({ limit }: { limit?: number }) {
             {c}
           </button>
         ))}
-        {["FXStreet", "ForexLive"].map(s => (
+        {["FXStreet", "ForexLive", "Reuters"].map(s => (
           <button key={s} onClick={() => setCat(s)} style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 6, cursor: "pointer",
             background: cat === s ? ((SOURCE_COLORS[s] ?? "#475569") + "20") : "transparent",
             border: `1px solid ${cat === s ? ((SOURCE_COLORS[s] ?? "#475569") + "40") : "#1c1c38"}`,
@@ -84,12 +137,65 @@ export default function FundamentalFeed({ limit }: { limit?: number }) {
         ))}
       </div>
 
+      {/* Currency filter */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 10, color: "#334155", marginRight: 4 }}>Devise :</span>
+        {CURRENCY_FILTERS.map(c => (
+          <button key={c} onClick={() => setCurFilter(c)} style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 5, cursor: "pointer",
+            background: curFilter === c ? "rgba(59,130,246,0.15)" : "transparent",
+            border: `1px solid ${curFilter === c ? "rgba(59,130,246,0.4)" : "#1c1c38"}`,
+            color: curFilter === c ? "#60a5fa" : "#475569" }}>
+            {c}
+          </button>
+        ))}
+        {themeFilter && (
+          <button onClick={() => setThemeFilter(null)} style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 5, cursor: "pointer",
+            background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.4)", color: "#a855f7", marginLeft: 8 }}>
+            🏷 {themeFilter} ✕
+          </button>
+        )}
+      </div>
+
+      {/* Dynamic themes (if showThemes) */}
+      {showThemes && themes.length > 0 && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+          {themes.map(t => (
+            <button key={t.keyword} onClick={() => setThemeFilter(themeFilter === t.keyword ? null : t.keyword)} style={{
+              fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 999, cursor: "pointer",
+              background: themeFilter === t.keyword ? "rgba(212,175,55,0.18)" : "rgba(100,116,139,0.08)",
+              border: `1px solid ${themeFilter === t.keyword ? "rgba(212,175,55,0.4)" : "#1c1c38"}`,
+              color: themeFilter === t.keyword ? "#f0c84a" : "#94a3b8",
+              display: "flex", alignItems: "center", gap: 4,
+            }}>
+              {t.keyword}
+              <span style={{ fontSize: 9, color: "#475569", background: "#0d0d1a", padding: "0 4px", borderRadius: 3 }}>{t.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && !loading && (
+        <div style={{ padding: 16, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 8, marginBottom: 14 }}>
+          <div style={{ color: "#ef4444", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>⚠ {error}</div>
+          <button onClick={fetchNews} style={{ fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 6, cursor: "pointer", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", color: "#ef4444" }}>
+            ↻ Réessayer
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {Array(5).fill(0).map((_,i) => <div key={i}><div className="skeleton" style={{ height: 16, marginBottom: 5 }} /><div className="skeleton" style={{ height: 11, width: "50%" }} /></div>)}
         </div>
       ) : paginated.length === 0 ? (
-        <div style={{ textAlign: "center", color: "#475569", padding: 30, fontSize: 13 }}>Aucun article disponible</div>
+        <div style={{ textAlign: "center", color: "#475569", padding: 30, fontSize: 13 }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>📰</div>
+          <div>Aucun article disponible{curFilter !== "Tous" ? ` pour ${curFilter}` : ""}</div>
+          <div style={{ fontSize: 11, color: "#334155", marginTop: 4 }}>
+            {articles.length === 0 ? "Les sources RSS sont temporairement inaccessibles." : "Essayez un autre filtre."}
+          </div>
+        </div>
       ) : (
         <>
           <div style={{ display: "flex", flexDirection: "column" }}>
@@ -114,7 +220,18 @@ export default function FundamentalFeed({ limit }: { limit?: number }) {
                       {a.source}
                     </span>
                     <span style={{ fontSize: 10, color: "#475569" }}>{a.category}</span>
-                    <span style={{ fontSize: 10, color: "#475569" }}>{timeAgo(a.pubDate)}</span>
+                    <span style={{ fontSize: 10, color: "#64748b", fontStyle: "italic" }}>{timeAgo(a.pubDate)}</span>
+                    {/* Currency badges */}
+                    {a.currencies && a.currencies.length > 0 && (
+                      <div style={{ display: "flex", gap: 3 }}>
+                        {a.currencies.slice(0, 4).map(c => (
+                          <span key={c} style={{
+                            fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3,
+                            background: "rgba(59,130,246,0.1)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)",
+                          }}>{c}</span>
+                        ))}
+                      </div>
+                    )}
                     {a.summary && (
                       <button onClick={() => setExpanded(expanded === globalIdx ? null : globalIdx)}
                         style={{ fontSize: 10, color: "#3b82f6", background: "none", border: "none", cursor: "pointer", marginLeft: "auto" }}>
@@ -136,7 +253,7 @@ export default function FundamentalFeed({ limit }: { limit?: number }) {
                   color: page === 1 ? "#1c1c38" : "#94a3b8" }}>
                 ‹
               </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => i + 1).map(p => (
                 <button key={p} onClick={() => setPage(p)}
                   style={{ fontSize: 11, fontWeight: 700, padding: "4px 9px", borderRadius: 6, cursor: "pointer", minWidth: 30,
                     background: page === p ? "rgba(212,175,55,0.12)" : "transparent",

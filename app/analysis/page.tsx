@@ -510,7 +510,11 @@ export default function AnalysisPage() {
   useEffect(() => {
     fetch("/api/news", { cache: "no-store" })
       .then(r => r.json())
-      .then((d: NewsArticle[]) => setNews(d))
+      .then((d) => {
+        // Handle both old format (array) and new format (object with articles)
+        if (Array.isArray(d)) setNews(d);
+        else if (d && d.articles) setNews(d.articles);
+      })
       .catch(() => {});
   }, []);
 

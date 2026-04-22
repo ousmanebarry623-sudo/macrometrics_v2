@@ -7,6 +7,7 @@ interface Article {
   source: string;
   category: string;
   summary?: string;
+  currencies?: string[];
 }
 
 const BROWSER_HEADERS = {
@@ -30,6 +31,27 @@ function isRecent(pubDate: string): boolean {
   return Date.now() - dt <= MAX_AGE_MS;
 }
 
+// ─── Détection de devises dans les articles ────────────────────────────────
+const CURRENCY_PATTERNS: Record<string, RegExp> = {
+  EUR: /\b(EUR|Euro|European|ECB|eurozone|Lagarde)\b/i,
+  USD: /\b(USD|Dollar|Fed|Federal Reserve|FOMC|Powell|DXY)\b/i,
+  GBP: /\b(GBP|Pound|Sterling|BOE|Bank of England|Bailey)\b/i,
+  JPY: /\b(JPY|Yen|BOJ|Bank of Japan|Ueda)\b/i,
+  CAD: /\b(CAD|Canadian|BOC|Bank of Canada|Macklem)\b/i,
+  AUD: /\b(AUD|Australian|RBA|Bullock)\b/i,
+  NZD: /\b(NZD|Kiwi|RBNZ|Orr)\b/i,
+  CHF: /\b(CHF|Swiss|SNB|franc suisse)\b/i,
+  XAU: /\b(Gold|XAU|bullion|or|gold price)\b/i,
+};
+
+function detectCurrencies(text: string): string[] {
+  const found: string[] = [];
+  for (const [cur, pattern] of Object.entries(CURRENCY_PATTERNS)) {
+    if (pattern.test(text)) found.push(cur);
+  }
+  return found;
+}
+
 async function parseRSS(url: string, source: string, category: string, limit = 8): Promise<Article[]> {
   try {
     const res = await fetch(url, {
@@ -37,7 +59,10 @@ async function parseRSS(url: string, source: string, category: string, limit = 8
       cache:   "no-store",
       signal:  AbortSignal.timeout(8000),
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.error(`[News RSS] ${source} HTTP ${res.status} for ${url}`);
+      return [];
+    }
     const text = await res.text();
     if (!text.includes("<item>") && !text.includes("<entry>")) return [];
 
@@ -57,7 +82,8 @@ async function parseRSS(url: string, source: string, category: string, limit = 8
       const desc = xml.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/)?.[1]
         ?.replace(/<[^>]+>/g, "").trim().slice(0, 200) ?? "";
       if (title && title.length > 3) {
-        items.push({ title, link, pubDate, source, category, summary: desc });
+        const currencies = detectCurrencies(`${title} ${desc}`);
+        items.push({ title, link, pubDate, source, category, summary: desc, currencies });
       }
       if (items.length >= limit) break;
     }
@@ -74,14 +100,16 @@ async function parseRSS(url: string, source: string, category: string, limit = 8
         const desc = xml.match(/<summary[^>]*>([\s\S]*?)<\/summary>/)?.[1]
           ?.replace(/<[^>]+>/g, "").trim().slice(0, 200) ?? "";
         if (title && title.length > 3) {
-          items.push({ title, link, pubDate, source, category, summary: desc });
+          const currencies = detectCurrencies(`${title} ${desc}`);
+          items.push({ title, link, pubDate, source, category, summary: desc, currencies });
         }
         if (items.length >= limit) break;
       }
     }
 
     return items;
-  } catch {
+  } catch (err) {
+    console.error(`[News RSS] ${source} error:`, err instanceof Error ? err.message : err);
     return [];
   }
 }
@@ -148,8 +176,33 @@ export async function GET() {
       return db - da;
     });
 
-    return Response.json(allItems.slice(0, 60));
-  } catch {
-    return Response.json([]);
+    // ── Calculer les thèmes dominants ──────────────────────────────────────────
+    const THEME_KEYWORDS = ["Fed","FOMC","BCE","ECB","CPI","NFP","BoJ","BoC","RBA","RBNZ","rate","inflation","tariff","gold","XAU","oil","recession","GDP","PMI","employment"];
+    const themeCounts: Record<string, number> = {};
+    for (const item of allItems) {
+      const text = `${item.title} ${item.summary ?? ""}`.toLowerCase();
+      for (const kw of THEME_KEYWORDS) {
+        if (text.includes(kw.toLowerCase())) {
+          themeCounts[kw] = (themeCounts[kw] || 0) + 1;
+        }
+      }
+    }
+    const topThemes = Object.entries(themeCounts)
+      .sort(([,a],[,b]) => b - a)
+      .slice(0, 8)
+      .map(([keyword, count]) => ({ keyword, count }));
+
+    const result = allItems.slice(0, 60);
+
+    return Response.json(
+      { articles: result, themes: topThemes, fetchedAt: new Date().toISOString(), totalSources: feeds.length },
+      { headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=600" } }
+    );
+  } catch (err) {
+    console.error("[News API] Fatal error:", err instanceof Error ? err.message : err);
+    return Response.json(
+      { articles: [], themes: [], error: "Erreur lors du chargement des news", fetchedAt: new Date().toISOString() },
+      { status: 500 }
+    );
   }
 }
