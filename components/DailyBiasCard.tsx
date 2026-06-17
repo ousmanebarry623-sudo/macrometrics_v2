@@ -225,6 +225,8 @@ export default function DailyBiasCard() {
   const [loading, setLoading]   = useState(true);
   const [instFailed, setInstFailed] = useState(false);
   const [lastUpd, setLastUpd]   = useState("");
+  // Top institutionnel masqué — le biais journalier suit l'analyse multi-facteurs
+  const SHOW_INST_SETUPS: boolean = false;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -313,8 +315,8 @@ export default function DailyBiasCard() {
         <div className="skeleton" style={{ height: 380, borderRadius: 8 }} />
       )}
 
-      {/* TOP 8 — Primary */}
-      {!loading && inst && inst.top8.length > 0 && (
+      {/* TOP institutionnel désactivé — le biais journalier suit l'analyse multi-facteurs (voir bloc Top 10 ci-dessous) */}
+      {SHOW_INST_SETUPS && !loading && inst && inst.top8.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
             Top 8 setups institutionnels
@@ -434,18 +436,18 @@ export default function DailyBiasCard() {
         </div>
       )}
 
-      {/* Fallback: top 8 legacy when institutional failed */}
-      {!loading && instFailed && allData.length > 0 && (() => {
+      {/* Top 10 paires — analyse multi-facteurs (classement par confiance) */}
+      {!loading && allData.length > 0 && (() => {
         const top3 = allData
           .filter(d => d.signal !== "NEUTRAL")
-          .map(d => ({ ...d, confScore: computeConfidenceLegacy(d), biasFull: determineBias(d) }))
+          .map(d => ({ ...d, confScore: d.confidence, biasFull: determineBias(d) }))
           .sort((a, b) => b.confScore - a.confScore)
-          .slice(0, 8);
+          .slice(0, 10);
         if (!top3.length) return null;
         return (
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 7 }}>
-              🏆 Top 8 paires (mode basique)
+              🏆 Top 10 paires · analyse multi-facteurs
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               {top3.map((d, i) => {

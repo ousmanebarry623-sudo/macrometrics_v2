@@ -680,7 +680,7 @@ export default function AnalysisPage() {
           <div style={{ background:"#10101e", border:"1px solid #1c1c38", borderRadius:12, overflow:"hidden", minWidth: isMobile ? 960 : "auto" }} suppressHydrationWarning>
             {/* Column headers */}
             <div style={{
-              display:"grid", gridTemplateColumns:"160px 130px 90px 150px 140px 120px 70px",
+              display:"grid", gridTemplateColumns:"160px 130px 90px 150px 140px 120px",
               padding:"8px 16px", borderBottom:"1px solid #161630",
               fontSize:9, fontWeight:700, color:"#334155", textTransform:"uppercase", letterSpacing:"0.1em",
             }}>
@@ -690,7 +690,6 @@ export default function AnalysisPage() {
               <span style={{display:"flex",alignItems:"center"}}>INSTITUTIONNEL<InfoTooltip content="COT CFTC — z-score des positions nettes non-commerciaux sur 52 semaines. Hebdomadaire, délai 3 jours ouvrés." /></span>
               <span style={{display:"flex",alignItems:"center"}}>SENTIMENT<InfoTooltip content="MyFXBook Community Outlook — ratio long/short retail. Utilisé en contrarian : majorité long = signal bearish institutionnel potentiel." /></span>
               <span style={{display:"flex",alignItems:"center"}}>SAISONNALITÉ<InfoTooltip content="Rendement mensuel moyen historique (Google Sheets 2015–2025). avg > 0 → Bullish, avg < 0 → Bearish. Ajustable via le filtre de période." /></span>
-              <span style={{display:"flex",alignItems:"center"}}>QUALITÉ<InfoTooltip content="Score 0–100 pondéré (Saisonnalité 45 % · Sentiment 40 % · Institutionnel 15 %). HIGH (≥65) = facteurs alignés et forts. LOW (<45) = signal faible ou contradictoire." /></span>
             </div>
 
             {filtered.map((p, i) => {
@@ -700,7 +699,7 @@ export default function AnalysisPage() {
               return (
                 <div key={p.pair} onClick={() => setSelected(p)} style={{
                   display:"grid",
-                  gridTemplateColumns:"160px 130px 90px 150px 140px 120px 70px",
+                  gridTemplateColumns:"160px 130px 90px 150px 140px 120px",
                   padding:"12px 16px",
                   borderBottom: i < filtered.length-1 ? "1px solid #0f0f24" : "none",
                   alignItems:"center", cursor:"pointer",
@@ -784,12 +783,6 @@ export default function AnalysisPage() {
                       </div>
                     );
                   })()}
-
-                  {/* Quality */}
-                  <div style={{ textAlign:"center" }}>
-                    <div style={{ fontSize:18, fontWeight:800, color:"#f0c84a", fontFamily:"JetBrains Mono, monospace" }}>{p.quality}</div>
-                    <div style={{ fontSize:8, color:"#334155" }}>Quality</div>
-                  </div>
                 </div>
               );
             })}
