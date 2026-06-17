@@ -1,5 +1,3 @@
-import G8Overview from "@/components/G8Overview";
-import QuickLinks from "@/components/QuickLinks";
 import COTChartCard from "@/components/COTChartCard";
 import RetailSentimentCard from "@/components/RetailSentimentCard";
 import SeasonalityG8 from "@/components/SeasonalityG8";
@@ -29,8 +27,6 @@ export default function HomePage() {
         </p>
       </div>
 
-      <QuickLinks />
-
       {/* Market Regime Detector — macro overview at the top */}
       <div style={{ marginBottom: 16 }}>
         <MarketRegimeDetector />
@@ -38,11 +34,6 @@ export default function HomePage() {
 
       {/* Row 1: Biais Journalier + Sessions */}
       <ResponsiveRow1 />
-
-      {/* Row 2: G8 Overview full width */}
-      <div style={{ marginBottom: 16 }}>
-        <G8Overview />
-      </div>
 
       {/* Row 2: COT Chart full width */}
       <div style={{ marginBottom: 16 }}>
