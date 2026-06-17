@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchAllPairsSeasonality, MONTH_NAMES as SHEET_MONTH_NAMES } from "@/lib/seasonality-sheets";
+import { fetchAllPairsSeasonality, MONTH_NAMES as SHEET_MONTH_NAMES, PAIR_TO_TAB } from "@/lib/seasonality-sheets";
 import { fetchMyfxbookMap } from "@/lib/myfxbook";
 
 export const dynamic = "force-dynamic";
@@ -269,9 +269,11 @@ function computePair(
   // Source unique : MyFXBook Community Outlook. Si indisponible → 50 (neutre).
   const pairRetailLong = mfxMap[p.pair] ?? 50;
   const sentExtreme = pairRetailLong >= 70 || pairRetailLong <= 30;
+  // Neutre uniquement dans la bande équilibrée 40–60 % (long ou short 50–60 %).
+  // Au-delà : contrarian. >60 % long → Bearish, <40 % long → Bullish.
   const sentBias: "Bullish"|"Bearish"|"Neutral" =
-    pairRetailLong >= 65 ? "Bearish" :
-    pairRetailLong <= 35 ? "Bullish" : "Neutral";
+    pairRetailLong > 60 ? "Bearish" :
+    pairRetailLong < 40 ? "Bullish" : "Neutral";
 
   // ── Saisonnalité ──────────────────────────────────────────────────────────
   const seasonal = computeSeasonality(p.pair, seasonMap);
@@ -344,7 +346,9 @@ export async function GET(req: Request) {
   const cotMap: Record<string, CurrencyData | null> = {};
   for (const { c, d } of cotResults) cotMap[c] = d;
 
-  const results = PAIRS.map(p => computePair(p, cotMap, macroMap, mfxMap, seasonMap));
+  // N'afficher que les paires présentes dans le Google Sheet (saisonnalité)
+  const sheetPairs = PAIRS.filter(p => PAIR_TO_TAB[p.pair]);
+  const results = sheetPairs.map(p => computePair(p, cotMap, macroMap, mfxMap, seasonMap));
 
   results.sort((a, b) => {
     if (a.signal !== "NEUTRAL" && b.signal === "NEUTRAL") return -1;

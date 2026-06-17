@@ -423,11 +423,14 @@ export default function AnalysisPage() {
     if (isNaN(from) || isNaN(to) || from >= to || from < SHEET_FROM) return;
     setSeasonLoading(true);
     try {
+      // 28 paires du Google Sheet (saisonnalité) — alignées sur PAIR_TO_TAB
       const allPairs = [
         "EUR/USD","GBP/USD","USD/JPY","USD/CHF","USD/CAD","AUD/USD","NZD/USD",
-        "EUR/GBP","EUR/JPY","EUR/CAD","EUR/AUD","GBP/JPY","GBP/AUD","GBP/CAD",
-        "GBP/NZD","AUD/JPY","AUD/CAD","AUD/NZD","NZD/JPY","CAD/JPY","USD/MXN",
-        "XAU/USD","XAG/USD","WTI/USD","XCU/USD",
+        "EUR/GBP","EUR/JPY","EUR/CAD","EUR/AUD","EUR/CHF","EUR/NZD",
+        "GBP/JPY","GBP/AUD","GBP/CAD","GBP/CHF","GBP/NZD",
+        "AUD/JPY","AUD/CAD","AUD/NZD","AUD/CHF",
+        "NZD/JPY","NZD/CAD","CAD/JPY","CAD/CHF","CHF/JPY",
+        "XAU/USD",
       ];
       const r = await fetch(`/api/seasonality-range?from=${from}&to=${to}&pairs=${encodeURIComponent(allPairs.join(","))}`, { cache:"no-store" });
       if (!r.ok) throw new Error();

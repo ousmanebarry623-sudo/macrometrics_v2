@@ -16,7 +16,8 @@ export interface RetailSentiment {
 }
 
 function contrarian(longPct: number): "Buy" | "Sell" | "Neutral" {
-  return longPct >= 65 ? "Sell" : longPct <= 35 ? "Buy" : "Neutral";
+  // Neutre seulement dans la bande 40–60 % ; au-delà = signal contrarian.
+  return longPct > 60 ? "Sell" : longPct < 40 ? "Buy" : "Neutral";
 }
 
 function makeEntry(pair: string, longPct: number, source: string): RetailSentiment {
@@ -25,7 +26,7 @@ function makeEntry(pair: string, longPct: number, source: string): RetailSentime
   return {
     pair, longPct, shortPct, source, contrarian: sig,
     note: sig !== "Neutral"
-      ? `${longPct}% ${longPct >= 65 ? "Long" : "Short"} → Signal ${sig}`
+      ? `${longPct}% ${longPct > 60 ? "Long" : "Short"} → Signal ${sig}`
       : "Sentiment équilibré",
   };
 }
