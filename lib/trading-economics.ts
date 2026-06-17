@@ -70,16 +70,16 @@ export const CENTRAL_BANKS_FALLBACK: CentralBank[] = [
 // Seules les séries qui reflètent FIDÈLEMENT le taux directeur sont utilisées.
 // US (cible Fed), Euro (taux refi BCE), UK (SONIA ≈ Bank Rate, arrondi 0,25).
 // Les autres banques restent en valeur curée (séries interbancaires FRED dérivent trop).
-import { kv } from "@/lib/redis";
-
+// NB : pas d'import Redis ici — ce module est aussi tiré par des composants client,
+// importer ioredis ferait fuiter dns/fs/net/tls dans le bundle navigateur.
 const FRED_BASE = "https://api.stlouisfed.org/fred/series/observations";
 const FRED_RATE_SERIES: Record<string, { id: string; round?: number }> = {
   USD: { id: "DFEDTARU" },
   EUR: { id: "ECBMRRFR" },
   GBP: { id: "IUDSOIA", round: 0.25 },
 };
-const CB_LIVE_REDIS_KEY = "cb:live:rates:v1";
-const CB_LIVE_TTL = 6 * 60 * 60; // 6h
+const CB_LIVE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
+let cbLiveCache: { data: CentralBank[]; ts: number } | null = null;
 
 async function fetchFredRate(id: string): Promise<{ value: number; date: string } | null> {
   const key = process.env.FRED_API_KEY;
@@ -99,11 +99,8 @@ async function fetchFredRate(id: string): Promise<{ value: number; date: string 
 }
 
 export async function fetchCentralBanksLive(): Promise<CentralBank[]> {
-  // Cache Redis partagé
-  try {
-    const cached = await kv.get<CentralBank[]>(CB_LIVE_REDIS_KEY);
-    if (cached && cached.length > 0) return cached;
-  } catch { /* Redis indisponible */ }
+  // Cache module-level (instance chaude) — évite ioredis côté client
+  if (cbLiveCache && Date.now() - cbLiveCache.ts < CB_LIVE_TTL_MS) return cbLiveCache.data;
 
   // Récupère les taux live pour les devises couvertes
   const overrides: Record<string, { rate: number; date: string }> = {};
@@ -124,7 +121,7 @@ export async function fetchCentralBanksLive(): Promise<CentralBank[]> {
 
   // Ne cacher que si au moins une source live a répondu
   if (Object.keys(overrides).length > 0) {
-    kv.set(CB_LIVE_REDIS_KEY, merged, { ex: CB_LIVE_TTL }).catch(() => {});
+    cbLiveCache = { data: merged, ts: Date.now() };
   }
   return merged;
 }
