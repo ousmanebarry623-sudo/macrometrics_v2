@@ -234,10 +234,6 @@ async function fetchMacroSurprises(): Promise<Record<string, number>> {
 }
 
 // ── Score helpers ─────────────────────────────────────────────────────────────
-function biasToNum(bias: "Bullish"|"Bearish"|"Neutral"): number {
-  return bias === "Bullish" ? 1 : bias === "Bearish" ? -1 : 0;
-}
-
 function numToBias(n: number): "Bullish"|"Bearish"|"Neutral" {
   return n > 0.1 ? "Bullish" : n < -0.1 ? "Bearish" : "Neutral";
 }
@@ -280,51 +276,37 @@ function computePair(
   // ── Saisonnalité ──────────────────────────────────────────────────────────
   const seasonal = computeSeasonality(p.pair, seasonMap);
 
-  // ── Signal combiné (4 facteurs) ───────────────────────────────────────────
-  const instScore = biasToNum(instBias);
-  const fundScore = biasToNum(fundBias);
-  const sentScore = biasToNum(sentBias);
-  const seasScore = seasonal.score;
+  // ── Normalisation des 4 facteurs en [-1, +1] ──────────────────────────────
+  const instN = Math.max(-1, Math.min(1, instNetZ / 3));                 // COT : diff z-score CFTC base−quote
+  const fundN = Math.max(-1, Math.min(1, fundNet / 3));                  // Macro : diff surprises base−quote
+  const sentN = Math.max(-1, Math.min(1, -(pairRetailLong - 50) / 20));  // Retail contrarian : sature à ±70/30
+  const seasN = seasonal.score;                                         // Saisonnalité : déjà -1 / 0 / +1
 
-  const rawSum  = instScore + fundScore + sentScore + seasScore;
+  // ── Score pondéré — vraie hiérarchie trader ───────────────────────────────
+  // Fondamental 35 % · Institutionnel 30 % · Sentiment 20 % · Saisonnalité 15 %
+  const W = { fund: 0.35, inst: 0.30, sent: 0.20, seas: 0.15 };
+  const score = W.fund * fundN + W.inst * instN + W.sent * sentN + W.seas * seasN; // [-1, +1]
+
   const factors = [instBias, fundBias, sentBias, seasonal.bias].filter(b => b !== "Neutral").length;
 
   let signal: PairSignal["signal"] = "NEUTRAL";
-  if (rawSum >= 2)  signal = "BUY";
-  else if (rawSum <= -2) signal = "SELL";
-  else if (rawSum === 1) signal = "BUY";
-  else if (rawSum === -1) signal = "SELL";
+  if (score >= 0.25)       signal = "BUY";
+  else if (score <= -0.25) signal = "SELL";
 
   const direction: PairSignal["direction"] =
     signal === "BUY" ? "up" : signal === "SELL" ? "down" : "flat";
 
-  // ── Confidence (0–100) — 4 composantes continues ─────────────────────────
-  // 1. Force directionnelle (0–50) : accord des facteurs
-  const dirForce   = Math.round((Math.abs(rawSum) / 4) * 50);
-  // 2. Conviction COT via z-score CFTC (0–30) — mesure la plus objective
-  const cotConv    = Math.min(30, Math.round((Math.abs(instNetZ) / 3.5) * 30));
-  // 3. Magnitude des surprises macro TradingView (0–15)
-  const macroConv  = Math.min(15, Math.round((Math.abs(fundNet) / 5.0) * 15));
-  // 4. Bonus sentiment extrême MyFXBook (0–5)
-  const sentConv   = sentExtreme ? 5 : 0;
-  const confidence = Math.min(100, dirForce + cotConv + macroConv + sentConv);
+  // ── Confidence (0–100) — conviction directionnelle nette pondérée ─────────
+  // |score| récompense l'alignement, pénalise les facteurs contradictoires.
+  const confidence = Math.min(100, Math.round(Math.abs(score) * 100));
 
   const confLevel: PairSignal["confLevel"] =
     confidence >= 65 ? "HIGH" : confidence >= 45 ? "MEDIUM" : "LOW";
 
-  // ── Quality (0–100) — force de chaque dimension, plafonnée individuellement
-  // 1. Force COT institutionnelle (0–35) — z-score CFTC
-  const cotQuality   = Math.min(35, Math.round((Math.abs(instNetZ) / 3.5) * 35));
-  // 2. Magnitude surprises macro (0–25)
-  const macroQuality = Math.min(25, Math.round((Math.abs(fundNet) / 5.0) * 25));
-  // 3. Extrémité sentiment retail MyFXBook (0–20)
-  const sentExt      = Math.abs(pairRetailLong - 50);
-  const sentQuality  = Math.min(20, Math.round((sentExt / 40) * 20));
-  // 4. Alignement signaux (0–15) — % de facteurs non-neutres
-  const alignQuality = Math.round((factors / 4) * 15);
-  // 5. Saisonnalité présente (0–5)
-  const seasQuality  = Math.abs(seasonal.score) > 0 ? 5 : 0;
-  const quality      = Math.min(100, cotQuality + macroQuality + sentQuality + alignQuality + seasQuality);
+  // ── Quality (0–100) — force des données, mêmes poids, sans direction ──────
+  const quality = Math.min(100, Math.round(
+    (W.fund * Math.abs(fundN) + W.inst * Math.abs(instN) + W.sent * Math.abs(sentN) + W.seas * Math.abs(seasN)) * 100,
+  ));
 
   return {
     pair: p.pair, base: p.base, quote: p.quote, category: p.category,
