@@ -157,6 +157,8 @@ export default function CentralBanksCard() {
             const meet = nextMeeting(b.currency);
             const meetingStr = meet.date ? meet.date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "—";
             const lastChangeStr = new Date(b.lastChange).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+            const isLive = b.rateSource === "live";
+            const asOfStr = b.rateAsOf ? new Date(b.rateAsOf).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : null;
             const dominant = b.probability.hike >= b.probability.cut
               ? (b.probability.hike >= b.probability.hold ? "hike" : "hold")
               : (b.probability.cut >= b.probability.hold ? "cut" : "hold");
@@ -195,7 +197,11 @@ export default function CentralBanksCard() {
                     <div style={{ fontSize: 30, fontWeight: 900, color: "#f0c84a", fontFamily: "JetBrains Mono, monospace", lineHeight: 1 }}>
                       {b.currentRate.toFixed(2)}%
                     </div>
-                    <div style={{ fontSize: 8, color: "#334155", marginTop: 2 }}>depuis {lastChangeStr}</div>
+                    <div style={{ fontSize: 8, marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                      {isLive
+                        ? <><span style={{ color: "#22c55e", fontWeight: 700 }}>● LIVE</span><span style={{ color: "#334155" }}>{asOfStr ? `· ${asOfStr}` : ""}</span></>
+                        : <span style={{ color: "#334155" }}>curé · depuis {lastChangeStr}</span>}
+                    </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontSize: 9, color: "#475569", marginBottom: 2 }}>Prévision marché</div>
@@ -265,7 +271,7 @@ export default function CentralBanksCard() {
 
       {/* Note source */}
       <div style={{ marginTop: 12, fontSize: 9, color: "#334155", lineHeight: 1.6 }}>
-        Taux = dernière décision officielle connue de chaque banque. Calendrier des réunions = agenda officiel 2026 (la prochaine échéance est calculée automatiquement). Les probabilités reflètent le pricing de marché à la dernière mise à jour.
+        <span style={{ color: "#22c55e", fontWeight: 700 }}>● LIVE</span> = taux directeur en temps réel via FRED (Fed, BCE, BoE). Les autres banques sont en valeur curée (dernière décision connue) faute de série live fiable. Calendrier des réunions = agenda officiel 2026 (prochaine échéance calculée automatiquement). Probabilités = pricing de marché à la dernière mise à jour.
       </div>
     </div>
   );
