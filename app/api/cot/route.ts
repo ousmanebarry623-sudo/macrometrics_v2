@@ -69,13 +69,24 @@ async function fetchInstrument(market: string): Promise<COTWeek[]> {
     "&$limit=110",
   ].join("");
 
-  const res = await fetch(url, {
-    headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
-    cache: "no-store",
-  });
-  if (!res.ok) return [];
+  // Retry : Socrata throttle les requêtes en rafale → 2 tentatives avec backoff
+  let rows: Record<string, string>[] = [];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(10000),
+      });
+      if (res.ok) {
+        const j = await res.json() as Record<string, string>[];
+        if (Array.isArray(j) && j.length > 0) { rows = j; break; }
+      }
+    } catch { /* retry */ }
+    if (attempt === 0) await new Promise(r => setTimeout(r, 400));
+  }
+  if (!rows.length) return [];
 
-  const rows = await res.json() as Record<string, string>[];
   return rows.map(r => {
     const ncL = parseInt(r["noncomm_positions_long_all"]  ?? "0") || 0;
     const ncS = parseInt(r["noncomm_positions_short_all"] ?? "0") || 0;
@@ -110,13 +121,17 @@ export async function GET() {
     return Response.json(cache.data);
   }
 
-  const results = await Promise.allSettled(
-    COT_INSTRUMENTS.map(inst => fetchInstrument(inst.market))
-  );
+  // Concurrence limitée à 3 pour éviter le throttle Socrata (sinon certaines paires vides)
+  const CONCURRENCY = 3;
+  const histories: COTWeek[][] = [];
+  for (let i = 0; i < COT_INSTRUMENTS.length; i += CONCURRENCY) {
+    const batch = COT_INSTRUMENTS.slice(i, i + CONCURRENCY);
+    const settled = await Promise.allSettled(batch.map(inst => fetchInstrument(inst.market)));
+    settled.forEach(s => histories.push(s.status === "fulfilled" ? s.value : []));
+  }
 
   const data: COTInstrument[] = COT_INSTRUMENTS.map((inst, i) => {
-    const r = results[i];
-    const history: COTWeek[] = r.status === "fulfilled" ? r.value : [];
+    const history: COTWeek[] = histories[i] ?? [];
     const latest = history[0] ?? {
       weekDate: "", nonCommLong: 0, nonCommShort: 0, nonCommNet: 0,
       commLong: 0, commShort: 0, commNet: 0, openInterest: 0,
@@ -128,6 +143,10 @@ export async function GET() {
     return { name: inst.name, category: inst.category, code: inst.market, latest, history, sentiment, extremeLevel: extreme };
   });
 
-  cache = { data, ts: Date.now() };
+  // Ne cacher que si données quasi-complètes (≥80% non vides) — évite de figer des paires vides
+  const ok = data.filter(d => d.history.length > 0).length;
+  if (ok >= Math.floor(COT_INSTRUMENTS.length * 0.8)) {
+    cache = { data, ts: Date.now() };
+  }
   return Response.json(data);
 }
