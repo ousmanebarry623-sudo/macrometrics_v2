@@ -13,7 +13,7 @@ import {
   type YearlyRow,
 } from "@/lib/seasonality-sheets";
 
-const REDIS_KEY = "seasonality:g8:v1";
+const REDIS_KEY = "seasonality:g8:v2";
 const REDIS_TTL = 6 * 60 * 60; // 6h
 const CONCURRENCY = 5;         // limite anti rate-limit Google Sheets
 

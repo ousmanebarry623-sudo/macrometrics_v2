@@ -3,11 +3,25 @@
 
 import { kv } from "@/lib/redis";
 
-const SEASONALITY_REDIS_KEY = "seasonality:all-pairs:v2";
+const SEASONALITY_REDIS_KEY = "seasonality:all-pairs:v3";
 const SEASONALITY_REDIS_TTL = 30 * 60; // 30 minutes en secondes
 
 export const SHEET_ID  = "1hVlCN-fdH30zAVasyoEsUCkcGtyxzSPOxLaJQ3F01cY";
 export const SHEET_TTL = 2 * 60 * 60 * 1000; // 2h cache brut
+
+// ── Onglets réellement présents dans le Google Sheet ──────────────────────────
+// IMPORTANT : gviz renvoie l'onglet par défaut (GBPUSD) pour tout onglet inexistant,
+// produisant de FAUSSES données. On n'expose donc QUE les onglets listés ci-dessous.
+// (Liste tirée de l'export XLSX du classeur — workbook.xml.)
+export const SHEET_TABS = new Set<string>([
+  "EURUSD","GBPUSD","USDJPY","USDCHF","USDCAD","AUDUSD","NZDUSD",
+  "EURGBP","EURJPY","EURCAD","EURAUD","EURCHF","EURNZD",
+  "GBPJPY","GBPAUD","GBPCAD","GBPCHF","GBPNZD",
+  "AUDJPY","AUDCAD","AUDNZD","AUDCHF",
+  "NZDJPY","NZDCAD",
+  "CADJPY","CADCHF","CHFJPY",
+  "XAUUSD",
+]);
 
 export const PAIR_TO_TAB: Record<string, string> = {
   // ── Majors ────────────────────────────────────────────────────────────────
@@ -21,24 +35,15 @@ export const PAIR_TO_TAB: Record<string, string> = {
   "GBP/JPY": "GBPJPY", "GBP/AUD": "GBPAUD", "GBP/CAD": "GBPCAD",
   "GBP/CHF": "GBPCHF", "GBP/NZD": "GBPNZD",
   // ── AUD Crosses ───────────────────────────────────────────────────────────
-  "AUD/JPY": "AUDJPY", "AUD/CAD": "AUDCAD", "AUD/NZD": "AUDNZD",
+  // NB : l'onglet réel s'appelle "AUDNZD " (espace final) dans le classeur.
+  "AUD/JPY": "AUDJPY", "AUD/CAD": "AUDCAD", "AUD/NZD": "AUDNZD ",
   "AUD/CHF": "AUDCHF",
   // ── NZD Crosses ───────────────────────────────────────────────────────────
-  "NZD/JPY": "NZDJPY", "NZD/CHF": "NZDCHF", "NZD/CAD": "NZDCAD",
+  "NZD/JPY": "NZDJPY", "NZD/CAD": "NZDCAD",
   // ── CAD / CHF / JPY Crosses ───────────────────────────────────────────────
   "CAD/JPY": "CADJPY", "CAD/CHF": "CADCHF", "CHF/JPY": "CHFJPY",
-  // ── Autres ────────────────────────────────────────────────────────────────
-  "USD/MXN": "USDMXN",
-  // ── Matières premières ────────────────────────────────────────────────────
-  "XAU/USD": "XAUUSD", "XAG/USD": "XAGUSD",
-  "WTI/USD": "WTIUSD", "WTI Oil": "WTIUSD",
-  "XCU/USD": "XCUUSD", "Copper":  "XCUUSD",
-  "Nat. Gas": "NATGAS",
-  // ── Indices ───────────────────────────────────────────────────────────────
-  "S&P 500":    "SPX500",
-  "Nasdaq 100": "NDX100",
-  "Dow Jones":  "DJIA",
-  "Russell 2000": "RUT2000",
+  // ── Métaux ────────────────────────────────────────────────────────────────
+  "XAU/USD": "XAUUSD",
 };
 
 export const MONTH_NAMES = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
@@ -93,6 +98,10 @@ export function parseDate(raw: string): { year: number; month: number } | null {
 
 // ── Fetch raw yearly rows for a given sheet tab ───────────────────────────────
 export async function fetchSheetRaw(tab: string): Promise<YearlyRow[] | null> {
+  // Garde anti-phantom : un onglet inexistant fait renvoyer l'onglet par défaut
+  // (GBPUSD) par gviz → données fausses. On refuse tout onglet hors allowlist.
+  if (!SHEET_TABS.has(tab.trim().toUpperCase())) return null;
+
   const hit = rawCache.get(tab);
   if (hit && Date.now() - hit.ts < SHEET_TTL) return hit.data;
 
