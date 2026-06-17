@@ -3,7 +3,6 @@ import QuickLinks from "@/components/QuickLinks";
 import COTChartCard from "@/components/COTChartCard";
 import RetailSentimentCard from "@/components/RetailSentimentCard";
 import SeasonalityG8 from "@/components/SeasonalityG8";
-import CentralBanksCard from "@/components/CentralBanksCard";
 import ResponsiveRow1 from "@/components/ResponsiveRow1";
 import MarketRegimeDetector from "@/components/MarketRegimeDetector";
 
@@ -48,11 +47,6 @@ export default function HomePage() {
       {/* Row 2: COT Chart full width */}
       <div style={{ marginBottom: 16 }}>
         <COTChartCard />
-      </div>
-
-      {/* Row: Central Banks G8 */}
-      <div style={{ marginBottom: 16 }}>
-        <CentralBanksCard />
       </div>
 
       {/* Row 3: Retail Sentiment full width */}

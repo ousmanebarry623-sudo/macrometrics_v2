@@ -45,7 +45,6 @@ export default function Footer() {
             <p style={{ fontSize: 10, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>Informations</p>
             {[
               ["À propos",      "/about"],
-              ["Méthodologie",  "/methodology"],
             ].map(([l, h]) => (
               <Link key={h} href={h} style={{ display: "block", fontSize: 12, color: "#64748b", textDecoration: "none", marginBottom: 6 }}
                 onMouseOver={e => (e.currentTarget.style.color = "#94a3b8")}
@@ -76,7 +75,6 @@ export default function Footer() {
         <div style={{ borderTop: "1px solid #1c1c38", paddingTop: 18, display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between", alignItems: "center" }}>
           <p style={{ fontSize: 11, color: "#334155" }}>© {new Date().getFullYear()} MacroMetrics — À titre informatif uniquement. Pas de conseil financier.</p>
           <div style={{ display: "flex", gap: 16 }}>
-            <Link href="/methodology" style={{ fontSize: 11, color: "#334155", textDecoration: "none" }}>Méthodologie</Link>
             <Link href="/about"       style={{ fontSize: 11, color: "#334155", textDecoration: "none" }}>À propos</Link>
             <span style={{ fontSize: 11, color: "#334155" }}>Heure Paris (CET/CEST)</span>
           </div>

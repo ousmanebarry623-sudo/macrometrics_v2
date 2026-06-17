@@ -60,9 +60,6 @@ export default function AboutPage() {
 
       {/* Links */}
       <div style={{ display: "flex", gap: 12, marginTop: 40, flexWrap: "wrap" }}>
-        <Link href="/methodology" style={{ fontSize: 13, fontWeight: 600, color: "#f0c84a", background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", padding: "8px 18px", borderRadius: 8, textDecoration: "none" }}>
-          Voir la Méthodologie →
-        </Link>
         <Link href="/" style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", background: "#0d0d1a", border: "1px solid #1c1c38", padding: "8px 18px", borderRadius: 8, textDecoration: "none" }}>
           Retour au Dashboard
         </Link>
