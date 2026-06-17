@@ -283,11 +283,11 @@ function computePair(
   const seasN = seasonal.score;                                         // Saisonnalité : déjà -1 / 0 / +1
 
   // ── Score pondéré — vraie hiérarchie trader ───────────────────────────────
-  // Fondamental 35 % · Institutionnel 30 % · Sentiment 20 % · Saisonnalité 15 %
-  const W = { fund: 0.35, inst: 0.30, sent: 0.20, seas: 0.15 };
+  // Saisonnalité 45 % · Sentiment 40 % · Institutionnel 15 % · Fondamental 0 %
+  const W = { fund: 0.0, inst: 0.15, sent: 0.40, seas: 0.45 };
   const score = W.fund * fundN + W.inst * instN + W.sent * sentN + W.seas * seasN; // [-1, +1]
 
-  const factors = [instBias, fundBias, sentBias, seasonal.bias].filter(b => b !== "Neutral").length;
+  const factors = [instBias, sentBias, seasonal.bias].filter(b => b !== "Neutral").length;
 
   let signal: PairSignal["signal"] = "NEUTRAL";
   if (score >= 0.25)       signal = "BUY";
