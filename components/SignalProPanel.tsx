@@ -77,8 +77,9 @@ function ScoreBar({ score, label }: { score: number; label: string }) {
 }
 
 function Bullet({ value }: { value: string }) {
-  const isBull = value === "Bullish" || value === "Buy" || value === "Confirming" || value === "Trending" || value === "Expanding" || value === "RISK_ON" || value === "Risk-On" || value === "Contrarian Bull";
-  const isBear = value === "Bearish" || value === "Sell" || value === "RISK_OFF" || value === "Risk-Off" || value === "Contrarian Bear";
+  const v = value.toLowerCase();
+  const isBull = v.includes("bullish") || v === "buy" || v.includes("confirming") || v.includes("trending") || v.includes("expanding") || v.includes("risk_on") || v.includes("risk-on") || v.includes("contrarian bull");
+  const isBear = v.includes("bearish") || v === "sell" || v.includes("risk_off") || v.includes("risk-off") || v.includes("contrarian bear");
   const color  = isBull ? "#22c55e" : isBear ? "#ef4444" : "#64748b";
   return <span style={{ fontSize: 11, color, fontWeight: 700 }}>● {value}</span>;
 }
@@ -169,7 +170,15 @@ export default function SignalProPanel({ pairLabel, tfLabel, metrics, onProResul
 
   const freshResult = metrics ? computeSignalPro(pairLabel, metrics, pairSignal, regime) : null;
 
-  if (freshResult && signalKey && signalKey !== lockedKeyRef.current) {
+  // Ne verrouiller qu'une fois la macro disponible (sinon on figerait des "N/A").
+  // Si la macro est en erreur définitive, on verrouille quand même (technique seul).
+  const macroReady = pairSignal !== null || error;
+  // Re-verrouiller si le snapshot courant a été pris sans macro et que la macro vient d'arriver.
+  const lockedHasNoMacro = lockedRef.current?.factors.macro.cot === "N/A";
+  const needRelock = !!(lockedRef.current && pairSignal && lockedHasNoMacro);
+
+  if (freshResult && signalKey && macroReady &&
+      (signalKey !== lockedKeyRef.current || needRelock)) {
     lockedRef.current    = freshResult;
     lockedKeyRef.current = signalKey;
   }
@@ -301,11 +310,10 @@ export default function SignalProPanel({ pairLabel, tfLabel, metrics, onProResul
           </div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <tbody>
-              <FactorRow label="COT"          value={factors.macro.cot} />
-              <FactorRow label="Retail"       value={factors.macro.retail} />
-              <FactorRow label="Saisonnalité" value={factors.macro.seasonality} />
-              <FactorRow label="Macro"        value={factors.macro.macro} />
-              <FactorRow label="Régime"       value={factors.macro.regime} />
+              <FactorRow label="COT institutionnel" value={factors.macro.cot} />
+              <FactorRow label="Sentiment retail"   value={factors.macro.retail} />
+              <FactorRow label="Saisonnalité"       value={factors.macro.seasonality} />
+              <FactorRow label="Régime marché"      value={factors.macro.regime} />
             </tbody>
           </table>
         </div>

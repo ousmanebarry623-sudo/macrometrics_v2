@@ -21,7 +21,6 @@ export interface MacroFactors {
   cot:          string;
   retail:       string;
   seasonality:  string;
-  macro:        string;
   regime:       string;
 }
 
@@ -89,31 +88,24 @@ export function computeMacroScore(
   if (!pairSignal) return 50;
 
   let score = 0;
-  const { institutional, fundamental, sentiment, seasonality } = pairSignal;
+  const { institutional, sentiment, seasonality } = pairSignal;
 
-  // COT institutionnel (30 pts)
-  const cotMag = Math.min(30, Math.round((institutional.strengthPct / 100) * 30));
+  // Poids macro (fondamental retiré) : COT 35 · Retail 30 · Saison 25 · Régime 10
+  // COT institutionnel (35 pts)
+  const cotMag = Math.min(35, Math.round((institutional.strengthPct / 100) * 35));
   if      (institutional.bias === "Bullish") score += cotMag;
-  else if (institutional.bias === "Neutral") score += 15;
+  else if (institutional.bias === "Neutral") score += 17;
   // Bearish → 0
 
-  // Retail contrarian MyFXBook (25 pts)
+  // Retail contrarian MyFXBook (30 pts) — bande neutre 40–60 alignée sur l'app
   const longPct = sentiment.longPct;
-  if      (longPct < 35) score += 25;
-  else if (longPct < 45) score += 18;
-  else if (longPct < 55) score += 12;
-  else if (longPct < 65) score += 6;
+  if      (longPct < 40) score += 30;
+  else if (longPct <= 60) score += 15;
   else                   score += 0;
 
-  // Surprises macro TradingView (20 pts)
-  const fundMag = Math.min(20, Math.round((Math.abs(fundamental.netScore) / 5) * 20));
-  if      (fundamental.bias === "Bullish") score += fundMag;
-  else if (fundamental.bias === "Neutral") score += 10;
-  // Bearish → 0
-
-  // Saisonnalité (15 pts)
-  if      (seasonality.bias === "Bullish") score += 15;
-  else if (seasonality.bias === "Neutral") score += 7;
+  // Saisonnalité (25 pts)
+  if      (seasonality.bias === "Bullish") score += 25;
+  else if (seasonality.bias === "Neutral") score += 12;
   // Bearish → 0
 
   // Market Regime (10 pts)
@@ -349,14 +341,18 @@ export function computeSignalPro(
         sensitivity: metrics.sensitivity,
       },
       macro: {
-        cot:         pairSignal?.institutional.bias ?? "N/A",
-        retail:      pairSignal
-          ? (pairSignal.sentiment.longPct < 35 ? "Contrarian Bull"
-            : pairSignal.sentiment.longPct > 65 ? "Contrarian Bear"
-            : `${pairSignal.sentiment.longPct}% Long`)
+        // Détail enrichi : biais + magnitude pour chaque facteur disponible
+        cot:         pairSignal
+          ? `${pairSignal.institutional.bias} · ${pairSignal.institutional.strengthPct}% force`
           : "N/A",
-        seasonality: pairSignal?.seasonality.bias  ?? "N/A",
-        macro:       pairSignal?.fundamental.bias  ?? "N/A",
+        retail:      pairSignal
+          ? (pairSignal.sentiment.longPct < 40 ? `Contrarian Bull · ${pairSignal.sentiment.shortPct}% short`
+            : pairSignal.sentiment.longPct > 60 ? `Contrarian Bear · ${pairSignal.sentiment.longPct}% long`
+            : `Neutre · ${pairSignal.sentiment.longPct}% long`)
+          : "N/A",
+        seasonality: pairSignal
+          ? `${pairSignal.seasonality.bias} · ${pairSignal.seasonality.month}`
+          : "N/A",
         regime:      regime ?? "N/A",
       },
     },
