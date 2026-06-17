@@ -1,6 +1,10 @@
 import { fetchMyfxbookMap, setMyfxbookCache } from "@/lib/myfxbook";
+import { PAIR_TO_TAB } from "@/lib/seasonality-sheets";
 
 export const dynamic = "force-dynamic";
+
+// Paires présentes dans le Google Sheet — seules celles-ci sont affichées
+const SHEET_PAIRS = new Set(Object.keys(PAIR_TO_TAB));
 
 export interface RetailSentiment {
   pair:       string;
@@ -33,10 +37,11 @@ export async function GET() {
   // Alimenter le cache partagé avec le résultat frais
   setMyfxbookCache(mfxMap);
 
-  // Convertir le map MyFXBook → RetailSentiment[] (toutes les paires disponibles)
-  const all: RetailSentiment[] = Object.entries(mfxMap).map(([pair, longPct]) =>
-    makeEntry(pair, longPct, "MyFXBook")
-  );
+  // Convertir le map MyFXBook → RetailSentiment[]
+  // Filtre : uniquement les paires présentes dans le Google Sheet
+  const all: RetailSentiment[] = Object.entries(mfxMap)
+    .filter(([pair]) => SHEET_PAIRS.has(pair))
+    .map(([pair, longPct]) => makeEntry(pair, longPct, "MyFXBook"));
 
   return Response.json(all);
 }
