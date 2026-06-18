@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import type { PairSignal } from "@/app/api/signal-analysis/route";
+import type { CalEvent } from "@/app/api/forex-calendar/route";
 import InfoTooltip from "@/components/InfoTooltip";
 import { useBreakpoint } from "@/lib/use-breakpoint";
 
@@ -83,6 +84,18 @@ function getSeasonality(pair: string, seasonData: Record<string, number[]> | nul
   const score    = trend[monthIdx] ?? 0;
   const bias     = score > 0 ? "Bullish" : score < 0 ? "Bearish" : "Neutral";
   return { bias: bias as "Bullish"|"Bearish"|"Neutral", score, month: MONTH_NAMES_FR[monthIdx], trend, monthIdx };
+}
+
+// ── Risk Events — cross-ref Calendrier économique ────────────────────────────
+function getRiskEvents(base: string, quote: string, calEvents: CalEvent[]): CalEvent[] {
+  const now = Date.now();
+  const in24h = now + 24 * 3600 * 1000;
+  return calEvents.filter(ev =>
+    ev.impact === "High" &&
+    ev.timestamp >= now &&
+    ev.timestamp <= in24h &&
+    (ev.currency === base || ev.currency === quote)
+  );
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -417,6 +430,7 @@ export default function AnalysisPage() {
   const [showSeasonFilter,  setShowSeasonFilter]  = useState(true);
   const [activePresetLabel, setActivePresetLabel] = useState<string>("10 ans");
   const [news,             setNews]             = useState<NewsArticle[]>([]);
+  const [calEvents,        setCalEvents]        = useState<CalEvent[]>([]);
 
   // Fonction centrale : récupère la saisonnalité depuis Google Sheets pour une plage d'années
   const fetchSeasonRange = useCallback(async (from: number, to: number) => {
@@ -491,6 +505,21 @@ export default function AnalysisPage() {
       .then(r => r.json())
       .then((d: NewsArticle[]) => setNews(d))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/forex-calendar", { cache: "no-store" })
+      .then(r => r.json())
+      .then((d: CalEvent[]) => Array.isArray(d) && setCalEvents(d))
+      .catch(() => {});
+    // Rafraîchit toutes les 15 min
+    const id = setInterval(() => {
+      fetch("/api/forex-calendar", { cache: "no-store" })
+        .then(r => r.json())
+        .then((d: CalEvent[]) => Array.isArray(d) && setCalEvents(d))
+        .catch(() => {});
+    }, 15 * 60 * 1000);
+    return () => clearInterval(id);
   }, []);
 
   const filtered = data.filter(p =>
@@ -709,19 +738,38 @@ export default function AnalysisPage() {
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background="transparent"}
                 >
                   {/* Pair */}
-                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <div>
-                      <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:2 }}>
-                        <span style={{ fontSize:13, fontWeight:700, color:"#e2e8f0" }}>{p.pair}</span>
-                        <span style={{ fontSize:9, color:"#334155", background:"#0d0d1a", padding:"1px 5px", borderRadius:4, border:"1px solid #1c1c38" }}>
-                          {p.category}
-                        </span>
+                  {(() => {
+                    const riskEvs = getRiskEvents(p.base, p.quote, calEvents);
+                    const hasRisk = riskEvs.length > 0;
+                    const tooltip = hasRisk
+                      ? riskEvs.map(e => `${e.parisTime} ${e.currency}: ${e.title}`).join("\n")
+                      : "";
+                    return (
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <div>
+                          <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:2 }}>
+                            <span style={{ fontSize:13, fontWeight:700, color:"#e2e8f0" }}>{p.pair}</span>
+                            <span style={{ fontSize:9, color:"#334155", background:"#0d0d1a", padding:"1px 5px", borderRadius:4, border:"1px solid #1c1c38" }}>
+                              {p.category}
+                            </span>
+                            {hasRisk && (
+                              <span title={tooltip} style={{
+                                display:"inline-flex", alignItems:"center", gap:3,
+                                fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:4,
+                                background:"rgba(249,115,22,0.12)", border:"1px solid rgba(249,115,22,0.35)",
+                                color:"#f97316", cursor:"default", whiteSpace:"nowrap",
+                              }}>
+                                ⚠️ {riskEvs.length > 1 ? `${riskEvs.length} events` : "event 24h"}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display:"flex", gap:3 }}>
+                            <CurrencyBadge cur={p.base} /><CurrencyBadge cur={p.quote} />
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ display:"flex", gap:3 }}>
-                        <CurrencyBadge cur={p.base} /><CurrencyBadge cur={p.quote} />
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   {/* Signal */}
                   <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
