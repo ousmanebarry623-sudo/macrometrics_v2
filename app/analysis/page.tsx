@@ -420,6 +420,7 @@ export default function AnalysisPage() {
   const [selected, setSelected] = useState<PairSignal | null>(null);
   const [category,     setCategory]     = useState<"All"|"Major"|"Cross"|"Commodity"|"Minor">("All");
   const [signalF,      setSignalF]      = useState<"All"|"BUY"|"SELL"|"NEUTRAL">("All");
+  const [currencyGrp,  setCurrencyGrp]  = useState<string>("All");
   const [lastFetch,    setLastFetch]    = useState<Date|null>(null);
   const [seasonPeriod,  setSeasonPeriod]  = useState<SeasonPeriod>("10y");
   const [fromYear,      setFromYear]      = useState<string>(String(SHEET_FROM));
@@ -523,8 +524,9 @@ export default function AnalysisPage() {
   }, []);
 
   const filtered = data.filter(p =>
-    (category === "All" || p.category === category) &&
-    (signalF  === "All" || p.signal   === signalF)
+    (category    === "All" || p.category === category) &&
+    (signalF     === "All" || p.signal   === signalF) &&
+    (currencyGrp === "All" || p.base     === currencyGrp)
   );
 
   const buys    = filtered.filter(p => p.signal === "BUY").length;
@@ -569,6 +571,35 @@ export default function AnalysisPage() {
               <div style={{ fontSize:10, color:"#475569", fontWeight:700, letterSpacing:"0.08em" }}>{label}</div>
             </div>
           ))}
+        </div>
+
+        {/* Currency Group Filter — TradingView watchlist order */}
+        <div style={{ display:"flex", gap:4, marginBottom:8, flexWrap:"wrap", alignItems:"center" }}>
+          <span style={{ fontSize:9, fontWeight:700, color:"#334155", textTransform:"uppercase", letterSpacing:"0.1em", marginRight:4 }}>Devise</span>
+          {(["All","EUR","USD","GBP","AUD","NZD","CAD","CHF","JPY"] as const).map(cur => {
+            const active = currencyGrp === cur;
+            const colors: Record<string,string> = {
+              EUR:"#3b82f6", USD:"#22c55e", GBP:"#a855f7", AUD:"#f59e0b",
+              NZD:"#10b981", CAD:"#f97316", CHF:"#6366f1", JPY:"#ef4444",
+            };
+            const c = cur === "All" ? "#f0c84a" : (colors[cur] ?? "#94a3b8");
+            return (
+              <button key={cur} onClick={() => setCurrencyGrp(cur)} style={{
+                fontSize:11, fontWeight:active?700:500, padding:"3px 10px", borderRadius:5, cursor:"pointer",
+                background: active ? `${c}18` : "transparent",
+                border:`1px solid ${active ? `${c}50` : "#1c1c38"}`,
+                color: active ? c : "#475569",
+                fontFamily: cur !== "All" ? "JetBrains Mono, monospace" : "inherit",
+              }}>{cur}</button>
+            );
+          })}
+          {currencyGrp !== "All" && (
+            <button onClick={() => setCurrencyGrp("All")} style={{
+              fontSize:10, padding:"2px 7px", borderRadius:4, cursor:"pointer",
+              background:"transparent", border:"1px solid #1c1c38", color:"#334155",
+              marginLeft:4,
+            }}>✕</button>
+          )}
         </div>
 
         {/* Filters */}
