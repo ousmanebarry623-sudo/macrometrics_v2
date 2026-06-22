@@ -8,5 +8,6 @@
       "path": "/api/cron/real-yield",
       "schedule": "0 8 * * *"
     }
-  ]
+  ],
+  "_buildAt": "2026-06-22T103448448Z"
 }
