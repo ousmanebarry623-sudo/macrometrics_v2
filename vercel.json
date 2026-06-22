@@ -1,13 +1,6 @@
 {
   "crons": [
-    {
-      "path": "/api/cron/surprise-index",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/api/cron/real-yield",
-      "schedule": "0 8 * * *"
-    }
-  ],
-  "_buildAt": "2026-06-22T103448448Z"
+    { "path": "/api/cron/surprise-index", "schedule": "0 */6 * * *" },
+    { "path": "/api/cron/real-yield",      "schedule": "0 8 * * *"  }
+  ]
 }
