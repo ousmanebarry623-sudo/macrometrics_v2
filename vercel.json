@@ -1,7 +1,7 @@
 {
   "version": 2,
   "crons": [
-    { "path": "/api/cron/surprise-index", "schedule": "0 */6 * * *" },
-    { "path": "/api/cron/real-yield",      "schedule": "0 8 * * *"  }
+    { "path": "/api/cron/surprise-index", "schedule": "0 9 * * *" },
+    { "path": "/api/cron/real-yield",      "schedule": "0 8 * * *" }
   ]
 }
