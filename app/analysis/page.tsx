@@ -4,6 +4,7 @@ import type { PairSignal } from "@/app/api/signal-analysis/route";
 import type { CalEvent } from "@/app/api/forex-calendar/route";
 import InfoTooltip from "@/components/InfoTooltip";
 import { useBreakpoint } from "@/lib/use-breakpoint";
+import EALivePanel from "@/components/EALivePanel";
 
 interface NewsArticle {
   title:   string;
@@ -876,6 +877,8 @@ export default function AnalysisPage() {
           <span>📅 <strong style={{color:"#475569"}}>Saisonnalité</strong> : Biais historique du mois en cours (50+ ans post-Bretton Woods)</span>
         </div>
       </div>
+
+      <EALivePanel />
 
       <style>{`@keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }`}</style>
     </>
