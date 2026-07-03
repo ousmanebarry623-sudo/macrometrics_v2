@@ -91,10 +91,20 @@ export async function GET(req: Request) {
 
   const baseUrl = getBaseUrl(req);
 
+  // Fetch JSON interne en vérifiant statut + content-type : les pages d'erreur
+  // Vercel (HTML) provoquaient `SyntaxError: Unexpected token '<'` via r.json().
+  async function fetchJson<T>(path: string, timeoutMs: number): Promise<T> {
+    const res = await fetch(`${baseUrl}${path}`, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
+    const ct = res.headers.get("content-type") ?? "";
+    if (!ct.includes("application/json")) throw new Error(`${path} → réponse non-JSON (${ct})`);
+    return res.json() as Promise<T>;
+  }
+
   try {
     const [signalsRes, regimeRes, bondSpreads, vix] = await Promise.all([
-      fetch(`${baseUrl}/api/signal-analysis`, { cache: "no-store", signal: AbortSignal.timeout(30000) }).then(r => r.json() as Promise<PairSignal[]>),
-      fetch(`${baseUrl}/api/market-regime`,   { cache: "no-store", signal: AbortSignal.timeout(20000) }).then(r => r.json()).catch(() => null),
+      fetchJson<PairSignal[]>("/api/signal-analysis", 30000),
+      fetchJson<{ snapshot?: { regime?: RegimeType } }>("/api/market-regime", 20000).catch(() => null),
       fetchAllBondSpreads(),
       fetchVIX(),
     ]);
