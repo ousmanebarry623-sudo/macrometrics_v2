@@ -39,27 +39,16 @@ export const G8_PAIRS: G8Pair[] = [
   { label: "AUD/NZD", yf: "AUDNZD=X", base: "AUD", quote: "NZD", group: "AUD/NZD Crosses" },
   // NZD crosses
   { label: "NZD/JPY", yf: "NZDJPY=X", base: "NZD", quote: "JPY", group: "AUD/NZD Crosses" },
-  { label: "NZD/CHF", yf: "NZDCHF=X", base: "NZD", quote: "CHF", group: "AUD/NZD Crosses" },
   { label: "NZD/CAD", yf: "NZDCAD=X", base: "NZD", quote: "CAD", group: "AUD/NZD Crosses" },
   // JPY/CAD/CHF crosses
   { label: "CAD/JPY", yf: "CADJPY=X", base: "CAD", quote: "JPY", group: "Other Crosses" },
   { label: "CAD/CHF", yf: "CADCHF=X", base: "CAD", quote: "CHF", group: "Other Crosses" },
   { label: "CHF/JPY", yf: "CHFJPY=X", base: "CHF", quote: "JPY", group: "Other Crosses" },
-  // Commodities
-  { label: "XAU/USD", yf: "GC=F",    base: "XAU", quote: "USD", group: "Commodities" },
-  { label: "XAG/USD", yf: "SI=F",    base: "XAG", quote: "USD", group: "Commodities" },
-  { label: "WTI Oil",  yf: "CL=F",   base: "WTI", quote: "USD", group: "Commodities" },
-  { label: "Nat. Gas", yf: "NG=F",   base: "NG",  quote: "USD", group: "Commodities" },
-  { label: "Copper",   yf: "HG=F",   base: "HG",  quote: "USD", group: "Commodities" },
-  // US Indices
-  { label: "S&P 500",    yf: "^GSPC", base: "SPX", quote: "USD", group: "Indices US" },
-  { label: "Nasdaq 100", yf: "^NDX",  base: "NDX", quote: "USD", group: "Indices US" },
-  { label: "Dow Jones",  yf: "^DJI",  base: "DJI", quote: "USD", group: "Indices US" },
-  { label: "Russell 2000", yf: "^RUT", base: "RUT", quote: "USD", group: "Indices US" },
-  { label: "VIX",        yf: "^VIX",  base: "VIX", quote: "USD", group: "Indices US" },
+  // Métaux (seul XAU/USD est présent dans le Google Sheet)
+  { label: "XAU/USD", yf: "GC=F",    base: "XAU", quote: "USD", group: "Métaux" },
 ];
 
-export const G8_GROUPS = ["Majors", "EUR Crosses", "GBP Crosses", "AUD/NZD Crosses", "Other Crosses", "Commodities", "Indices US"];
+export const G8_GROUPS = ["Majors", "EUR Crosses", "GBP Crosses", "AUD/NZD Crosses", "Other Crosses", "Métaux"];
 
 // COT-tracked instruments (CFTC commodity codes)
 export const COT_INSTRUMENTS = [

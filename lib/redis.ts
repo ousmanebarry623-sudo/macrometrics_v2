@@ -10,25 +10,47 @@ declare global {
   var __redis: Redis | undefined;
 }
 
+function createClient(): Redis {
+  const client = new Redis(process.env.REDIS_URL!, {
+    // Échec rapide : une commande qui traîne > 3s est abandonnée au lieu de
+    // bloquer la lambda 8s (les timeouts "Command timed out" venaient de là).
+    maxRetriesPerRequest:  1,
+    connectTimeout:        5000,
+    commandTimeout:        3000,
+    keepAlive:             5000,
+    lazyConnect:           false,
+    enableAutoPipelining:  true,
+    // Reconnexion si la socket a été gelée/coupée entre deux invocations.
+    retryStrategy: (times) => (times > 3 ? null : Math.min(times * 200, 1000)),
+    reconnectOnError: (err) => {
+      // Upstash coupe les connexions inactives ; on force la reco sur READONLY/ECONNRESET.
+      return /READONLY|ECONNRESET|EPIPE/.test(err.message);
+    },
+    tls: process.env.REDIS_URL!.startsWith("rediss://") ? {} : undefined,
+  });
+
+  client.on("error", (err: Error) => {
+    console.error("[Redis] Erreur connexion:", err.message);
+  });
+
+  return client;
+}
+
 function getClient(): Redis | null {
   if (!process.env.REDIS_URL) return null;
-
-  if (!globalThis.__redis) {
-    globalThis.__redis = new Redis(process.env.REDIS_URL, {
-      maxRetriesPerRequest:  3,
-      connectTimeout:        8000,
-      commandTimeout:        8000,
-      lazyConnect:           false,
-      // Désactiver TLS auto-detect si l'URL commence par rediss://
-      tls: process.env.REDIS_URL.startsWith("rediss://") ? {} : undefined,
-    });
-
-    globalThis.__redis.on("error", (err: Error) => {
-      console.error("[Redis] Erreur connexion:", err.message);
-    });
+  if (!globalThis.__redis || globalThis.__redis.status === "end") {
+    globalThis.__redis = createClient();
   }
-
   return globalThis.__redis;
+}
+
+/** Sur timeout de commande, la connexion est probablement morte (socket gelée
+ *  par le runtime serverless) : on la détruit pour forcer une reco propre. */
+function handleCommandError(err: unknown): void {
+  if (err instanceof Error && /timed out/i.test(err.message) && globalThis.__redis) {
+    globalThis.__redis.disconnect();
+    globalThis.__redis = undefined;
+  }
 }
 
 // ─── Interface compatible @vercel/kv ─────────────────────────────────────────
@@ -43,6 +65,7 @@ export const kv = {
       return JSON.parse(val) as T;
     } catch (err) {
       console.error(`[Redis] get(${key}):`, err);
+      handleCommandError(err);
       return null;
     }
   },
@@ -60,6 +83,7 @@ export const kv = {
       }
     } catch (err) {
       console.error(`[Redis] set(${key}):`, err);
+      handleCommandError(err);
     }
   },
 
@@ -71,6 +95,7 @@ export const kv = {
       await client.del(key);
     } catch (err) {
       console.error(`[Redis] del(${key}):`, err);
+      handleCommandError(err);
     }
   },
 };

@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import type { PairSignal } from "@/app/api/signal-analysis/route";
+import type { CalEvent } from "@/app/api/forex-calendar/route";
 import InfoTooltip from "@/components/InfoTooltip";
 import { useBreakpoint } from "@/lib/use-breakpoint";
+import EALivePanel from "@/components/EALivePanel";
 
 interface NewsArticle {
   title:   string;
@@ -83,6 +85,18 @@ function getSeasonality(pair: string, seasonData: Record<string, number[]> | nul
   const score    = trend[monthIdx] ?? 0;
   const bias     = score > 0 ? "Bullish" : score < 0 ? "Bearish" : "Neutral";
   return { bias: bias as "Bullish"|"Bearish"|"Neutral", score, month: MONTH_NAMES_FR[monthIdx], trend, monthIdx };
+}
+
+// ── Risk Events — cross-ref Calendrier économique ────────────────────────────
+function getRiskEvents(base: string, quote: string, calEvents: CalEvent[]): CalEvent[] {
+  const now = Date.now();
+  const in24h = now + 24 * 3600 * 1000;
+  return calEvents.filter(ev =>
+    ev.impact === "High" &&
+    ev.timestamp >= now &&
+    ev.timestamp <= in24h &&
+    (ev.currency === base || ev.currency === quote)
+  );
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -231,29 +245,6 @@ function DetailPanel({ p, onClose, seasonData, seasonLabel, news }: { p: PairSig
               </div>
             </div>
 
-            {/* Fundamental */}
-            <div style={{ background:"#10101e", border:"1px solid #1c1c38", borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                <span style={{ fontSize:10, fontWeight:700, color:"#475569", textTransform:"uppercase", letterSpacing:"0.08em" }}>Fondamental</span>
-                <BiasBadge bias={p.fundamental.bias} small />
-              </div>
-              {[
-                { label:`Score ${p.base}`, val:p.fundamental.baseScore },
-                { label:`Score ${p.quote}`, val:p.fundamental.quoteScore },
-                { label:"Score Net", val:p.fundamental.netScore, highlight:true },
-              ].map(({ label, val, highlight }) => (
-                <div key={label} style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
-                  <span style={{ fontSize:11, color: highlight?"#94a3b8":"#64748b" }}>{label}:</span>
-                  <span style={{
-                    fontFamily:"JetBrains Mono, monospace", fontSize:11, fontWeight: highlight?700:400,
-                    color: val > 0 ? "#22c55e" : val < 0 ? "#ef4444" : "#64748b",
-                    background: val > 0 ? "rgba(34,197,94,0.1)" : val < 0 ? "rgba(239,68,68,0.1)" : "transparent",
-                    padding:"1px 6px", borderRadius:4,
-                  }}>{val > 0 ? "+" : ""}{val.toFixed(1)}</span>
-                </div>
-              ))}
-            </div>
-
             {/* Sentiment */}
             <div style={{ background:"#10101e", border:"1px solid #1c1c38", borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
@@ -346,7 +337,6 @@ function DetailPanel({ p, onClose, seasonData, seasonLabel, news }: { p: PairSig
               <div style={{ fontSize:10, fontWeight:700, color:"#475569", textTransform:"uppercase", marginBottom:8 }}>Résumé facteurs</div>
               {[
                 { label:"Institutionnel", bias:p.institutional.bias, pct:p.institutional.strengthPct },
-                { label:"Fondamental",    bias:p.fundamental.bias,    pct:Math.min(100, Math.abs(p.fundamental.netScore)*12) },
                 { label:"Sentiment",      bias:p.sentiment.bias,      pct:Math.abs(p.sentiment.longPct - 50)*2 },
                 ...[{ label:`Saisonnalité (${getSeasonality(p.pair, seasonData).month})`, bias:getSeasonality(p.pair, seasonData).bias, pct:Math.abs(getSeasonality(p.pair, seasonData).score)*100 }],
               ].map(({ label, bias, pct }) => {
@@ -431,6 +421,7 @@ export default function AnalysisPage() {
   const [selected, setSelected] = useState<PairSignal | null>(null);
   const [category,     setCategory]     = useState<"All"|"Major"|"Cross"|"Commodity"|"Minor">("All");
   const [signalF,      setSignalF]      = useState<"All"|"BUY"|"SELL"|"NEUTRAL">("All");
+  const [currencyGrp,  setCurrencyGrp]  = useState<string>("All");
   const [lastFetch,    setLastFetch]    = useState<Date|null>(null);
   const [seasonPeriod,  setSeasonPeriod]  = useState<SeasonPeriod>("10y");
   const [fromYear,      setFromYear]      = useState<string>(String(SHEET_FROM));
@@ -441,17 +432,21 @@ export default function AnalysisPage() {
   const [showSeasonFilter,  setShowSeasonFilter]  = useState(true);
   const [activePresetLabel, setActivePresetLabel] = useState<string>("10 ans");
   const [news,             setNews]             = useState<NewsArticle[]>([]);
+  const [calEvents,        setCalEvents]        = useState<CalEvent[]>([]);
 
   // Fonction centrale : récupère la saisonnalité depuis Google Sheets pour une plage d'années
   const fetchSeasonRange = useCallback(async (from: number, to: number) => {
     if (isNaN(from) || isNaN(to) || from >= to || from < SHEET_FROM) return;
     setSeasonLoading(true);
     try {
+      // 28 paires du Google Sheet (saisonnalité) — alignées sur PAIR_TO_TAB
       const allPairs = [
         "EUR/USD","GBP/USD","USD/JPY","USD/CHF","USD/CAD","AUD/USD","NZD/USD",
-        "EUR/GBP","EUR/JPY","EUR/CAD","EUR/AUD","GBP/JPY","GBP/AUD","GBP/CAD",
-        "GBP/NZD","AUD/JPY","AUD/CAD","AUD/NZD","NZD/JPY","CAD/JPY","USD/MXN",
-        "XAU/USD","XAG/USD","WTI/USD","XCU/USD",
+        "EUR/GBP","EUR/JPY","EUR/CAD","EUR/AUD","EUR/CHF","EUR/NZD",
+        "GBP/JPY","GBP/AUD","GBP/CAD","GBP/CHF","GBP/NZD",
+        "AUD/JPY","AUD/CAD","AUD/NZD","AUD/CHF",
+        "NZD/JPY","NZD/CAD","CAD/JPY","CAD/CHF","CHF/JPY",
+        "XAU/USD",
       ];
       const r = await fetch(`/api/seasonality-range?from=${from}&to=${to}&pairs=${encodeURIComponent(allPairs.join(","))}`, { cache:"no-store" });
       if (!r.ok) throw new Error();
@@ -475,12 +470,22 @@ export default function AnalysisPage() {
   const load = useCallback(async (force=false) => {
     setLoading(true); setError("");
     try {
-      const r = await fetch(force ? "/api/signal-analysis?force=1" : "/api/signal-analysis", { cache:"no-store" });
-      if (!r.ok) throw new Error("API error");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
+      const r = await fetch(force ? "/api/signal-analysis?force=1" : "/api/signal-analysis", {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!r.ok) throw new Error(`Erreur serveur (${r.status})`);
       const d: PairSignal[] = await r.json();
       setData(d); setLastFetch(new Date());
     } catch(e: unknown) {
-      setError(e instanceof Error ? e.message : "Erreur");
+      if (e instanceof Error && e.name === "AbortError") {
+        setError("Délai dépassé (25s) — les sources COT ou macro sont lentes. Réessayez.");
+      } else {
+        setError(e instanceof Error ? e.message : "Erreur inconnue");
+      }
     }
     setLoading(false);
   }, []);
@@ -504,9 +509,25 @@ export default function AnalysisPage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    fetch("/api/forex-calendar", { cache: "no-store" })
+      .then(r => r.json())
+      .then((d: CalEvent[]) => Array.isArray(d) && setCalEvents(d))
+      .catch(() => {});
+    // Rafraîchit toutes les 15 min
+    const id = setInterval(() => {
+      fetch("/api/forex-calendar", { cache: "no-store" })
+        .then(r => r.json())
+        .then((d: CalEvent[]) => Array.isArray(d) && setCalEvents(d))
+        .catch(() => {});
+    }, 15 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const filtered = data.filter(p =>
-    (category === "All" || p.category === category) &&
-    (signalF  === "All" || p.signal   === signalF)
+    (category    === "All" || p.category === category) &&
+    (signalF     === "All" || p.signal   === signalF) &&
+    (currencyGrp === "All" || p.base     === currencyGrp)
   );
 
   const buys    = filtered.filter(p => p.signal === "BUY").length;
@@ -523,7 +544,7 @@ export default function AnalysisPage() {
           <div>
             <h1 style={{ fontSize:26, fontWeight:800, color:"#f1f5f9", margin:0 }}>Analyse Multi-Facteurs</h1>
             <p style={{ fontSize:12, color:"#475569", marginTop:4 }}>
-              COT Institutionnel · Surprises Macro · Sentiment Retail · Mis à jour toutes les 30 min
+              COT Institutionnel · Sentiment Retail · Saisonnalité · Mis à jour toutes les 30 min
             </p>
           </div>
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
@@ -551,6 +572,35 @@ export default function AnalysisPage() {
               <div style={{ fontSize:10, color:"#475569", fontWeight:700, letterSpacing:"0.08em" }}>{label}</div>
             </div>
           ))}
+        </div>
+
+        {/* Currency Group Filter — TradingView watchlist order */}
+        <div style={{ display:"flex", gap:4, marginBottom:8, flexWrap:"wrap", alignItems:"center" }}>
+          <span style={{ fontSize:9, fontWeight:700, color:"#334155", textTransform:"uppercase", letterSpacing:"0.1em", marginRight:4 }}>Devise</span>
+          {(["All","EUR","USD","GBP","AUD","NZD","CAD","CHF","JPY"] as const).map(cur => {
+            const active = currencyGrp === cur;
+            const colors: Record<string,string> = {
+              EUR:"#3b82f6", USD:"#22c55e", GBP:"#a855f7", AUD:"#f59e0b",
+              NZD:"#10b981", CAD:"#f97316", CHF:"#6366f1", JPY:"#ef4444",
+            };
+            const c = cur === "All" ? "#f0c84a" : (colors[cur] ?? "#94a3b8");
+            return (
+              <button key={cur} onClick={() => setCurrencyGrp(cur)} style={{
+                fontSize:11, fontWeight:active?700:500, padding:"3px 10px", borderRadius:5, cursor:"pointer",
+                background: active ? `${c}18` : "transparent",
+                border:`1px solid ${active ? `${c}50` : "#1c1c38"}`,
+                color: active ? c : "#475569",
+                fontFamily: cur !== "All" ? "JetBrains Mono, monospace" : "inherit",
+              }}>{cur}</button>
+            );
+          })}
+          {currencyGrp !== "All" && (
+            <button onClick={() => setCurrencyGrp("All")} style={{
+              fontSize:10, padding:"2px 7px", borderRadius:4, cursor:"pointer",
+              background:"transparent", border:"1px solid #1c1c38", color:"#334155",
+              marginLeft:4,
+            }}>✕</button>
+          )}
         </div>
 
         {/* Filters */}
@@ -669,11 +719,19 @@ export default function AnalysisPage() {
         })()}
 
         {/* Error/Loading */}
-        {error && <div style={{ padding:24, textAlign:"center", color:"#ef4444", fontSize:13 }}>⚠ {error}</div>}
+        {error && (
+          <div style={{ padding:24, background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, margin:"8px 0" }}>
+            <div style={{ color:"#ef4444", fontSize:13, fontWeight:600, marginBottom:8 }}>⚠ Erreur de chargement</div>
+            <div style={{ color:"#94a3b8", fontSize:12, marginBottom:12 }}>{error}</div>
+            <button onClick={() => load(true)} style={{ fontSize:11, fontWeight:700, padding:"5px 14px", borderRadius:6, cursor:"pointer", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", color:"#ef4444" }}>
+              ↻ Réessayer
+            </button>
+          </div>
+        )}
         {loading && !data.length && (
           <div style={{ padding:48, textAlign:"center", color:"#475569", fontSize:13 }}>
             <span style={{ animation:"spin 1s linear infinite", display:"inline-block", marginRight:8 }}>⟳</span>
-            Analyse en cours… (COT + Macro + Sentiment)
+            Analyse en cours… (COT + Sentiment + Saisonnalité)
           </div>
         )}
 
@@ -683,7 +741,7 @@ export default function AnalysisPage() {
           <div style={{ background:"#10101e", border:"1px solid #1c1c38", borderRadius:12, overflow:"hidden", minWidth: isMobile ? 960 : "auto" }} suppressHydrationWarning>
             {/* Column headers */}
             <div style={{
-              display:"grid", gridTemplateColumns:"160px 130px 90px 150px 140px 140px 120px 70px",
+              display:"grid", gridTemplateColumns:"160px 130px 90px 150px 140px 120px",
               padding:"8px 16px", borderBottom:"1px solid #161630",
               fontSize:9, fontWeight:700, color:"#334155", textTransform:"uppercase", letterSpacing:"0.1em",
             }}>
@@ -691,21 +749,18 @@ export default function AnalysisPage() {
               <span>SIGNAL</span>
               <span>CONFIANCE</span>
               <span style={{display:"flex",alignItems:"center"}}>INSTITUTIONNEL<InfoTooltip content="COT CFTC — z-score des positions nettes non-commerciaux sur 52 semaines. Hebdomadaire, délai 3 jours ouvrés." /></span>
-              <span style={{display:"flex",alignItems:"center"}}>FONDAMENTAL<InfoTooltip content="Surprises macro 30j (TradingView Calendar). Actual vs Forecast sur les 30 derniers événements de la devise. Mise à jour continue." /></span>
               <span style={{display:"flex",alignItems:"center"}}>SENTIMENT<InfoTooltip content="MyFXBook Community Outlook — ratio long/short retail. Utilisé en contrarian : majorité long = signal bearish institutionnel potentiel." /></span>
               <span style={{display:"flex",alignItems:"center"}}>SAISONNALITÉ<InfoTooltip content="Rendement mensuel moyen historique (Google Sheets 2015–2025). avg > 0 → Bullish, avg < 0 → Bearish. Ajustable via le filtre de période." /></span>
-              <span style={{display:"flex",alignItems:"center"}}>QUALITÉ<InfoTooltip content="Score 0–100 d'alignement des 4 facteurs. HIGH (≥80) = 4 facteurs alignés. LOW (<50) = ≤2 facteurs alignés." /></span>
             </div>
 
             {filtered.map((p, i) => {
               const sig  = SIGNAL_CFG[p.signal];
               const instC = BIAS_CFG[p.institutional.bias];
-              const fundC = BIAS_CFG[p.fundamental.bias];
               const sentC = BIAS_CFG[p.sentiment.bias];
               return (
                 <div key={p.pair} onClick={() => setSelected(p)} style={{
                   display:"grid",
-                  gridTemplateColumns:"160px 130px 90px 150px 140px 140px 120px 70px",
+                  gridTemplateColumns:"160px 130px 90px 150px 140px 120px",
                   padding:"12px 16px",
                   borderBottom: i < filtered.length-1 ? "1px solid #0f0f24" : "none",
                   alignItems:"center", cursor:"pointer",
@@ -715,19 +770,38 @@ export default function AnalysisPage() {
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background="transparent"}
                 >
                   {/* Pair */}
-                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <div>
-                      <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:2 }}>
-                        <span style={{ fontSize:13, fontWeight:700, color:"#e2e8f0" }}>{p.pair}</span>
-                        <span style={{ fontSize:9, color:"#334155", background:"#0d0d1a", padding:"1px 5px", borderRadius:4, border:"1px solid #1c1c38" }}>
-                          {p.category}
-                        </span>
+                  {(() => {
+                    const riskEvs = getRiskEvents(p.base, p.quote, calEvents);
+                    const hasRisk = riskEvs.length > 0;
+                    const tooltip = hasRisk
+                      ? riskEvs.map(e => `${e.parisTime} ${e.currency}: ${e.title}`).join("\n")
+                      : "";
+                    return (
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <div>
+                          <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:2 }}>
+                            <span style={{ fontSize:13, fontWeight:700, color:"#e2e8f0" }}>{p.pair}</span>
+                            <span style={{ fontSize:9, color:"#334155", background:"#0d0d1a", padding:"1px 5px", borderRadius:4, border:"1px solid #1c1c38" }}>
+                              {p.category}
+                            </span>
+                            {hasRisk && (
+                              <span title={tooltip} style={{
+                                display:"inline-flex", alignItems:"center", gap:3,
+                                fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:4,
+                                background:"rgba(249,115,22,0.12)", border:"1px solid rgba(249,115,22,0.35)",
+                                color:"#f97316", cursor:"default", whiteSpace:"nowrap",
+                              }}>
+                                ⚠️ {riskEvs.length > 1 ? `${riskEvs.length} events` : "event 24h"}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display:"flex", gap:3 }}>
+                            <CurrencyBadge cur={p.base} /><CurrencyBadge cur={p.quote} />
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ display:"flex", gap:3 }}>
-                        <CurrencyBadge cur={p.base} /><CurrencyBadge cur={p.quote} />
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   {/* Signal */}
                   <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
@@ -765,22 +839,6 @@ export default function AnalysisPage() {
                     </div>
                   </div>
 
-                  {/* Fundamental */}
-                  <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                      <span style={{ width:6, height:6, borderRadius:"50%", background:fundC.color, display:"inline-block", flexShrink:0 }} />
-                      <span style={{ fontSize:11, fontWeight:600, color:fundC.color }}>{p.fundamental.bias}</span>
-                    </div>
-                    <div style={{
-                      fontFamily:"JetBrains Mono, monospace", fontSize:12, fontWeight:700,
-                      color: p.fundamental.netScore>0?"#22c55e":p.fundamental.netScore<0?"#ef4444":"#64748b",
-                      background: p.fundamental.netScore>0?"rgba(34,197,94,0.1)":p.fundamental.netScore<0?"rgba(239,68,68,0.1)":"transparent",
-                      padding:"1px 6px", borderRadius:4, width:"fit-content",
-                    }}>
-                      {p.fundamental.netScore>0?"+":""}{p.fundamental.netScore.toFixed(1)}
-                    </div>
-                  </div>
-
                   {/* Sentiment */}
                   <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:5 }}>
@@ -805,12 +863,6 @@ export default function AnalysisPage() {
                       </div>
                     );
                   })()}
-
-                  {/* Quality */}
-                  <div style={{ textAlign:"center" }}>
-                    <div style={{ fontSize:18, fontWeight:800, color:"#f0c84a", fontFamily:"JetBrains Mono, monospace" }}>{p.quality}</div>
-                    <div style={{ fontSize:8, color:"#334155" }}>Quality</div>
-                  </div>
                 </div>
               );
             })}
@@ -821,11 +873,12 @@ export default function AnalysisPage() {
         {/* Footer */}
         <div style={{ marginTop:12, padding:"10px 16px", background:"#10101e", border:"1px solid #1c1c38", borderRadius:10, fontSize:10, color:"#334155", display:"flex", gap:16, flexWrap:"wrap" }}>
           <span>📊 <strong style={{color:"#475569"}}>Institutionnel</strong> : COT CFTC non-commerciaux (z-score 52 sem.) · TFF pour devises, Legacy COT pour matières premières</span>
-          <span>📈 <strong style={{color:"#475569"}}>Fondamental</strong> : Surprises économiques 30 jours (TV Calendar)</span>
           <span>👥 <strong style={{color:"#475569"}}>Sentiment</strong> : MyFXBook Community Outlook (contrarian) · CFTC non-reportable en fallback</span>
           <span>📅 <strong style={{color:"#475569"}}>Saisonnalité</strong> : Biais historique du mois en cours (50+ ans post-Bretton Woods)</span>
         </div>
       </div>
+
+      <EALivePanel />
 
       <style>{`@keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }`}</style>
     </>

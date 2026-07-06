@@ -88,7 +88,11 @@ export default function SeasonalityG8() {
   useEffect(() => { loadAll(); }, [loadAll]);
 
   const inst = allData.find(d => d.pair === selected);
-  const groupPairs = G8_PAIRS.filter(p => p.group === group).map(p => p.label);
+  // Paires réellement présentes dans le Google Sheet (source gsheets). Avant chargement → on montre tout.
+  const sheetPairs = new Set(allData.filter(d => d.source === "gsheets").map(d => d.pair));
+  const groupPairs = G8_PAIRS
+    .filter(p => p.group === group && (allData.length === 0 || sheetPairs.has(p.label)))
+    .map(p => p.label);
 
   // Filter yearlyData by date range if enabled
   const effectiveEnd = endYear < startYear ? startYear : endYear;

@@ -1,10 +1,8 @@
-import G8Overview from "@/components/G8Overview";
-import QuickLinks from "@/components/QuickLinks";
 import COTChartCard from "@/components/COTChartCard";
 import RetailSentimentCard from "@/components/RetailSentimentCard";
 import SeasonalityG8 from "@/components/SeasonalityG8";
-import CentralBanksCard from "@/components/CentralBanksCard";
 import ResponsiveRow1 from "@/components/ResponsiveRow1";
+import MarketRegimeDetector from "@/components/MarketRegimeDetector";
 
 export default function HomePage() {
   const parisDate = new Date().toLocaleDateString("fr-FR", {
@@ -29,24 +27,17 @@ export default function HomePage() {
         </p>
       </div>
 
-      <QuickLinks />
-
-      {/* Row 1: Biais Journalier + Fear&Greed + Sessions */}
-      <ResponsiveRow1 />
-
-      {/* Row 2: G8 Overview full width */}
+      {/* Market Regime Detector — macro overview at the top */}
       <div style={{ marginBottom: 16 }}>
-        <G8Overview />
+        <MarketRegimeDetector />
       </div>
+
+      {/* Row 1: Biais Journalier + Sessions */}
+      <ResponsiveRow1 />
 
       {/* Row 2: COT Chart full width */}
       <div style={{ marginBottom: 16 }}>
         <COTChartCard />
-      </div>
-
-      {/* Row: Central Banks G8 */}
-      <div style={{ marginBottom: 16 }}>
-        <CentralBanksCard />
       </div>
 
       {/* Row 3: Retail Sentiment full width */}

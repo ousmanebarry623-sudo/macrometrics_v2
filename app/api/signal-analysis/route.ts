@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchAllPairsSeasonality, MONTH_NAMES as SHEET_MONTH_NAMES } from "@/lib/seasonality-sheets";
+import { fetchAllPairsSeasonality, MONTH_NAMES as SHEET_MONTH_NAMES, PAIR_TO_TAB } from "@/lib/seasonality-sheets";
 import { fetchMyfxbookMap } from "@/lib/myfxbook";
 
 export const dynamic = "force-dynamic";
@@ -75,12 +75,20 @@ const PAIRS: { pair: string; base: string; quote: string; category: "Major"|"Cro
   { pair:"AUD/NZD", base:"AUD", quote:"NZD", category:"Cross" },
   { pair:"NZD/JPY", base:"NZD", quote:"JPY", category:"Cross" },
   { pair:"CAD/JPY", base:"CAD", quote:"JPY", category:"Cross" },
+  { pair:"EUR/CHF", base:"EUR", quote:"CHF", category:"Cross" },
+  { pair:"GBP/CHF", base:"GBP", quote:"CHF", category:"Cross" },
+  { pair:"EUR/NZD", base:"EUR", quote:"NZD", category:"Cross" },
+  { pair:"AUD/CHF", base:"AUD", quote:"CHF", category:"Cross" },
+  { pair:"NZD/CAD", base:"NZD", quote:"CAD", category:"Cross" },
+  { pair:"NZD/CHF", base:"NZD", quote:"CHF", category:"Cross" },
+  { pair:"CAD/CHF", base:"CAD", quote:"CHF", category:"Cross" },
+  { pair:"CHF/JPY", base:"CHF", quote:"JPY", category:"Cross" },
   // Mineurs USD
   { pair:"USD/MXN", base:"USD", quote:"MXN", category:"Minor" },
   // Matières premières
   { pair:"XAU/USD", base:"XAU", quote:"USD", category:"Commodity" },
   { pair:"XAG/USD", base:"XAG", quote:"USD", category:"Commodity" },
-  { pair:"WTI/USD", base:"WTI", quote:"USD", category:"Commodity" },
+  { pair:"WTI", base:"WTI", quote:"USD", category:"Commodity" },
   { pair:"XCU/USD", base:"XCU", quote:"USD", category:"Commodity" },
 ];
 
@@ -226,10 +234,6 @@ async function fetchMacroSurprises(): Promise<Record<string, number>> {
 }
 
 // ── Score helpers ─────────────────────────────────────────────────────────────
-function biasToNum(bias: "Bullish"|"Bearish"|"Neutral"): number {
-  return bias === "Bullish" ? 1 : bias === "Bearish" ? -1 : 0;
-}
-
 function numToBias(n: number): "Bullish"|"Bearish"|"Neutral" {
   return n > 0.1 ? "Bullish" : n < -0.1 ? "Bearish" : "Neutral";
 }
@@ -265,58 +269,46 @@ function computePair(
   // Source unique : MyFXBook Community Outlook. Si indisponible → 50 (neutre).
   const pairRetailLong = mfxMap[p.pair] ?? 50;
   const sentExtreme = pairRetailLong >= 70 || pairRetailLong <= 30;
+  // Neutre uniquement dans la bande équilibrée 40–60 % (long ou short 50–60 %).
+  // Au-delà : contrarian. >60 % long → Bearish, <40 % long → Bullish.
   const sentBias: "Bullish"|"Bearish"|"Neutral" =
-    pairRetailLong >= 65 ? "Bearish" :
-    pairRetailLong <= 35 ? "Bullish" : "Neutral";
+    pairRetailLong > 60 ? "Bearish" :
+    pairRetailLong < 40 ? "Bullish" : "Neutral";
 
   // ── Saisonnalité ──────────────────────────────────────────────────────────
   const seasonal = computeSeasonality(p.pair, seasonMap);
 
-  // ── Signal combiné (4 facteurs) ───────────────────────────────────────────
-  const instScore = biasToNum(instBias);
-  const fundScore = biasToNum(fundBias);
-  const sentScore = biasToNum(sentBias);
-  const seasScore = seasonal.score;
+  // ── Normalisation des 4 facteurs en [-1, +1] ──────────────────────────────
+  const instN = Math.max(-1, Math.min(1, instNetZ / 3));                 // COT : diff z-score CFTC base−quote
+  const fundN = Math.max(-1, Math.min(1, fundNet / 3));                  // Macro : diff surprises base−quote
+  const sentN = Math.max(-1, Math.min(1, -(pairRetailLong - 50) / 20));  // Retail contrarian : sature à ±70/30
+  const seasN = seasonal.score;                                         // Saisonnalité : déjà -1 / 0 / +1
 
-  const rawSum  = instScore + fundScore + sentScore + seasScore;
-  const factors = [instBias, fundBias, sentBias, seasonal.bias].filter(b => b !== "Neutral").length;
+  // ── Score pondéré — vraie hiérarchie trader ───────────────────────────────
+  // Saisonnalité 45 % · Sentiment 40 % · Institutionnel 15 % · Fondamental 0 %
+  const W = { fund: 0.0, inst: 0.15, sent: 0.40, seas: 0.45 };
+  const score = W.fund * fundN + W.inst * instN + W.sent * sentN + W.seas * seasN; // [-1, +1]
+
+  const factors = [instBias, sentBias, seasonal.bias].filter(b => b !== "Neutral").length;
 
   let signal: PairSignal["signal"] = "NEUTRAL";
-  if (rawSum >= 2)  signal = "BUY";
-  else if (rawSum <= -2) signal = "SELL";
-  else if (rawSum === 1) signal = "BUY";
-  else if (rawSum === -1) signal = "SELL";
+  if (score >= 0.25)       signal = "BUY";
+  else if (score <= -0.25) signal = "SELL";
 
   const direction: PairSignal["direction"] =
     signal === "BUY" ? "up" : signal === "SELL" ? "down" : "flat";
 
-  // ── Confidence (0–100) — 4 composantes continues ─────────────────────────
-  // 1. Force directionnelle (0–50) : accord des facteurs
-  const dirForce   = Math.round((Math.abs(rawSum) / 4) * 50);
-  // 2. Conviction COT via z-score CFTC (0–30) — mesure la plus objective
-  const cotConv    = Math.min(30, Math.round((Math.abs(instNetZ) / 3.5) * 30));
-  // 3. Magnitude des surprises macro TradingView (0–15)
-  const macroConv  = Math.min(15, Math.round((Math.abs(fundNet) / 5.0) * 15));
-  // 4. Bonus sentiment extrême MyFXBook (0–5)
-  const sentConv   = sentExtreme ? 5 : 0;
-  const confidence = Math.min(100, dirForce + cotConv + macroConv + sentConv);
+  // ── Confidence (0–100) — conviction directionnelle nette pondérée ─────────
+  // |score| récompense l'alignement, pénalise les facteurs contradictoires.
+  const confidence = Math.min(100, Math.round(Math.abs(score) * 100));
 
   const confLevel: PairSignal["confLevel"] =
     confidence >= 65 ? "HIGH" : confidence >= 45 ? "MEDIUM" : "LOW";
 
-  // ── Quality (0–100) — force de chaque dimension, plafonnée individuellement
-  // 1. Force COT institutionnelle (0–35) — z-score CFTC
-  const cotQuality   = Math.min(35, Math.round((Math.abs(instNetZ) / 3.5) * 35));
-  // 2. Magnitude surprises macro (0–25)
-  const macroQuality = Math.min(25, Math.round((Math.abs(fundNet) / 5.0) * 25));
-  // 3. Extrémité sentiment retail MyFXBook (0–20)
-  const sentExt      = Math.abs(pairRetailLong - 50);
-  const sentQuality  = Math.min(20, Math.round((sentExt / 40) * 20));
-  // 4. Alignement signaux (0–15) — % de facteurs non-neutres
-  const alignQuality = Math.round((factors / 4) * 15);
-  // 5. Saisonnalité présente (0–5)
-  const seasQuality  = Math.abs(seasonal.score) > 0 ? 5 : 0;
-  const quality      = Math.min(100, cotQuality + macroQuality + sentQuality + alignQuality + seasQuality);
+  // ── Quality (0–100) — force des données, mêmes poids, sans direction ──────
+  const quality = Math.min(100, Math.round(
+    (W.fund * Math.abs(fundN) + W.inst * Math.abs(instN) + W.sent * Math.abs(sentN) + W.seas * Math.abs(seasN)) * 100,
+  ));
 
   return {
     pair: p.pair, base: p.base, quote: p.quote, category: p.category,
@@ -354,7 +346,9 @@ export async function GET(req: Request) {
   const cotMap: Record<string, CurrencyData | null> = {};
   for (const { c, d } of cotResults) cotMap[c] = d;
 
-  const results = PAIRS.map(p => computePair(p, cotMap, macroMap, mfxMap, seasonMap));
+  // N'afficher que les paires présentes dans le Google Sheet (saisonnalité)
+  const sheetPairs = PAIRS.filter(p => PAIR_TO_TAB[p.pair]);
+  const results = sheetPairs.map(p => computePair(p, cotMap, macroMap, mfxMap, seasonMap));
 
   results.sort((a, b) => {
     if (a.signal !== "NEUTRAL" && b.signal === "NEUTRAL") return -1;

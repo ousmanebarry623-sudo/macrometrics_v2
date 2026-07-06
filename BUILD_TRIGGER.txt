@@ -1,0 +1,4 @@
+deploy triggered: 2026-06-22T10:44:22.921Z
+branch: feature/market-regime-detector
+apis: macro-surprise, real-yield, bond-spread
+retry: 3

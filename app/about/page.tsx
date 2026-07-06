@@ -21,7 +21,7 @@ export default function AboutPage() {
       {/* Mission */}
       <Section title="Mission">
         <p style={p}>
-          MacroMetrics est conçu pour offrir une vue multi-facteurs du marché, sans algorithme opaque ni signal "black box". Chaque indicateur est basé sur des données publiques vérifiables, avec une méthodologie transparente.
+          MacroMetrics est conçu pour offrir une vue multi-facteurs du marché, sans algorithme opaque ni signal "black box". Chaque indicateur repose sur des données publiques vérifiables et une logique de calcul transparente.
         </p>
         <p style={{ ...p, marginTop: 10 }}>
           L'objectif n'est pas de remplacer l'analyse discrétionnaire, mais de la renforcer avec un cadre quantitatif rigoureux.
@@ -60,9 +60,6 @@ export default function AboutPage() {
 
       {/* Links */}
       <div style={{ display: "flex", gap: 12, marginTop: 40, flexWrap: "wrap" }}>
-        <Link href="/methodology" style={{ fontSize: 13, fontWeight: 600, color: "#f0c84a", background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", padding: "8px 18px", borderRadius: 8, textDecoration: "none" }}>
-          Voir la Méthodologie →
-        </Link>
         <Link href="/" style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8", background: "#0d0d1a", border: "1px solid #1c1c38", padding: "8px 18px", borderRadius: 8, textDecoration: "none" }}>
           Retour au Dashboard
         </Link>
@@ -87,7 +84,7 @@ const SOURCES = [
   { icon: "🏛️", name: "CFTC — Commitments of Traders (COT)",    freq: "Hebdomadaire",  desc: "Rapport officiel de la Commodity Futures Trading Commission. Publié chaque vendredi à 15h30 EST, référence les positions nettes des non-commerciaux (institutionnels) sur les futures réglementés (CME, ICE). Délai de 3 jours ouvrés." },
   { icon: "👥", name: "MyFXBook Community Outlook",               freq: "Temps réel",    desc: "Agrégateur de sentiment retail forex. Compile les positions long/short des traders particuliers sur les plateformes connectées à MyFXBook. Utilisé en contrarian : majorité long → signal bearish institutionnel potentiel." },
   { icon: "📊", name: "TradingView Scanner API",                  freq: "Temps réel",    desc: "Prix en temps réel pour toutes les paires forex, indices et matières premières. Utilisé pour le ticker en direct, la page Signal et le suivi de prix live. Mode updateMode=realtime." },
-  { icon: "📅", name: "TradingView Economic Calendar",            freq: "Continu",       desc: "Calendrier des événements macro : NFP, CPI, PIB, décisions de taux. Fournit les valeurs Actual, Forecast et Previous permettant de calculer les surprises économiques (score fondamental)." },
+  { icon: "📅", name: "TradingView Economic Calendar",            freq: "Continu",       desc: "Calendrier des événements macro : NFP, CPI, PIB, décisions de taux. Fournit les valeurs Actual, Forecast et Previous pour suivre les surprises économiques." },
   { icon: "📈", name: "Google Sheets — Saisonnalité historique",  freq: "Mensuelle",     desc: "Données propriétaires de saisonnalité pour 28+ paires forex, commodities et indices. Couvre 2015–2025. Chaque onglet contient les rendements mensuels historiques utilisés pour calculer les biais saisonniers." },
   { icon: "📰", name: "Google News RSS / ForexLive / Reuters",    freq: "Continu",       desc: "Flux d'actualités financières agrégées. Sources multiples avec déduplication par titre. Filtrage par paire forex grâce aux symboles présents dans les titres." },
   { icon: "🔴", name: "Telegram Bot API",                        freq: "Temps réel",    desc: "Envoi automatique de signaux vers un channel Telegram privé. Surveillance serveur-side des setups de retest via Redis/Vercel KV." },

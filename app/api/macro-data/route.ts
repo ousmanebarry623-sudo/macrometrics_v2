@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchAllMacroData, CENTRAL_BANKS_FALLBACK, computeFXMacro, type CountryMacro } from "@/lib/trading-economics";
+import { fetchAllMacroData, fetchCentralBanksLive, computeFXMacro, type CountryMacro } from "@/lib/trading-economics";
 import { kv } from "@/lib/redis";
 
 const REDIS_MACRO_KEY = "macro:override:v1";
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
     }
 
     if (type === "central-banks") {
-      return NextResponse.json(CENTRAL_BANKS_FALLBACK);
+      return NextResponse.json(await fetchCentralBanksLive());
     }
 
     if (type === "fx-scores") {
@@ -55,7 +55,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       countries,
-      centralBanks: CENTRAL_BANKS_FALLBACK,
+      centralBanks: await fetchCentralBanksLive(),
       fxScores,
       source:       countries[0]?.source ?? "fallback",
       updatedAt:    new Date().toISOString(),

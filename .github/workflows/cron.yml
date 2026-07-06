@@ -10,4 +10,6 @@ jobs:
     steps:
       - name: Call Vercel Cron Endpoint
         run: |
-          curl https://macrometrics-v2.vercel.app/api/autosend/cron
+          curl -f -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://macrometrics-v2.vercel.app/api/autosend/cron

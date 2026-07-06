@@ -46,25 +46,31 @@ export async function GET(req: Request) {
     return NextResponse.json(cached.data, { headers: { "X-Cache": "HIT" } });
   }
 
-  const results = await Promise.all(
-    pairs.map(async (pair): Promise<SeasonRangeResult> => {
-      const tab  = PAIR_TO_TAB[pair];
-      const rows = tab ? await fetchSheetRaw(tab) : null;
+  const computeOne = async (pair: string): Promise<SeasonRangeResult> => {
+    const tab  = PAIR_TO_TAB[pair];
+    const rows = tab ? await fetchSheetRaw(tab) : null;
 
-      if (rows && rows.length > 0) {
-        const { months, trend } = computeRangeStats(rows, from, to);
-        return { pair, from, to, months: months as MonthStat[], trend, source: "sheets" };
-      }
+    if (rows && rows.length > 0) {
+      const { months, trend } = computeRangeStats(rows, from, to);
+      return { pair, from, to, months: months as MonthStat[], trend, source: "sheets" };
+    }
 
-      // Fallback : retourne des 0 si pas de données
-      return {
-        pair, from, to,
-        months: MONTH_NAMES.map(m => ({ month: m, avg: 0, bullishPct: 50, bias: 0, count: 0 })),
-        trend:  new Array(12).fill(0),
-        source: "fallback",
-      };
-    })
-  );
+    // Fallback : retourne des 0 si pas de données
+    return {
+      pair, from, to,
+      months: MONTH_NAMES.map(m => ({ month: m, avg: 0, bullishPct: 50, bias: 0, count: 0 })),
+      trend:  new Array(12).fill(0),
+      source: "fallback",
+    };
+  };
+
+  // Concurrence limitée à 5 pour éviter le rate-limit Google Sheets
+  const CONCURRENCY = 5;
+  const results: SeasonRangeResult[] = [];
+  for (let i = 0; i < pairs.length; i += CONCURRENCY) {
+    const batch = await Promise.all(pairs.slice(i, i + CONCURRENCY).map(computeOne));
+    results.push(...batch);
+  }
 
   resultCache.set(cacheKey, { data: results, ts: Date.now() + RESULT_TTL });
   return NextResponse.json(results, {

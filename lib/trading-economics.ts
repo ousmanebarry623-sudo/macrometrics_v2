@@ -35,6 +35,8 @@ export interface CentralBank {
   forecast:    number | null;
   bias:        "hawkish" | "neutral" | "dovish";
   probability: { hike: number; hold: number; cut: number };
+  rateSource?: "live" | "curated";  // origine du taux affiché
+  rateAsOf?:   string;               // date de la valeur (live FRED) ou dernière décision
 }
 
 // ── G8 + G10 countries — updated April 2026 ───────────────────────────────────
@@ -63,6 +65,66 @@ export const CENTRAL_BANKS_FALLBACK: CentralBank[] = [
   { name:"RBNZ",        country:"New Zealand",   flag:"🇳🇿", currency:"NZD", currentRate:2.25, lastChange:"2026-04-08", nextMeeting:"2026-05-27", forecast:2.50, bias:"hawkish",  probability:{ hike:52, hold:45, cut:3  } },
   { name:"SNB",         country:"Switzerland",   flag:"🇨🇭", currency:"CHF", currentRate:0.00, lastChange:"2026-03-19", nextMeeting:"2026-06-18", forecast:0.00, bias:"neutral",  probability:{ hike:3,  hold:80, cut:17 } },
 ];
+
+// ── Taux directeurs live via FRED API (clé gratuite FRED_API_KEY) ─────────────
+// Seules les séries qui reflètent FIDÈLEMENT le taux directeur sont utilisées.
+// US (cible Fed), Euro (taux refi BCE), UK (SONIA ≈ Bank Rate, arrondi 0,25).
+// Les autres banques restent en valeur curée (séries interbancaires FRED dérivent trop).
+// NB : pas d'import Redis ici — ce module est aussi tiré par des composants client,
+// importer ioredis ferait fuiter dns/fs/net/tls dans le bundle navigateur.
+const FRED_BASE = "https://api.stlouisfed.org/fred/series/observations";
+const FRED_RATE_SERIES: Record<string, { id: string; round?: number }> = {
+  USD: { id: "DFEDTARU" },
+  EUR: { id: "ECBMRRFR" },
+  GBP: { id: "IUDSOIA", round: 0.25 },
+};
+const CB_LIVE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
+let cbLiveCache: { data: CentralBank[]; ts: number } | null = null;
+
+async function fetchFredRate(id: string): Promise<{ value: number; date: string } | null> {
+  const key = process.env.FRED_API_KEY;
+  if (!key) return null;
+  try {
+    const url = `${FRED_BASE}?series_id=${id}&api_key=${key}&file_type=json&sort_order=desc&limit=1`;
+    const r = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const obs = j?.observations?.[0];
+    const v = parseFloat(obs?.value);
+    if (!obs || isNaN(v)) return null;
+    return { value: v, date: obs.date };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchCentralBanksLive(): Promise<CentralBank[]> {
+  // Cache module-level (instance chaude) — évite ioredis côté client
+  if (cbLiveCache && Date.now() - cbLiveCache.ts < CB_LIVE_TTL_MS) return cbLiveCache.data;
+
+  // Récupère les taux live pour les devises couvertes
+  const overrides: Record<string, { rate: number; date: string }> = {};
+  await Promise.all(
+    Object.entries(FRED_RATE_SERIES).map(async ([cur, cfg]) => {
+      const res = await fetchFredRate(cfg.id);
+      if (!res) return;
+      const rate = cfg.round ? Math.round(res.value / cfg.round) * cfg.round : res.value;
+      overrides[cur] = { rate: Math.round(rate * 100) / 100, date: res.date };
+    }),
+  );
+
+  const merged = CENTRAL_BANKS_FALLBACK.map((b): CentralBank => {
+    const o = overrides[b.currency];
+    if (o) return { ...b, currentRate: o.rate, rateSource: "live", rateAsOf: o.date };
+    return { ...b, rateSource: "curated", rateAsOf: b.lastChange };
+  });
+
+  // Ne cacher que si au moins une source live a répondu
+  if (Object.keys(overrides).length > 0) {
+    cbLiveCache = { data: merged, ts: Date.now() };
+  }
+  return merged;
+}
 
 // ── Macro score computation ───────────────────────────────────────────────────
 // Weights: rate 30%, inflation 25%, unemployment 15%, gdp 15%, trade 10%, sentiment 5%

@@ -23,11 +23,20 @@ export interface ServerMonitor {
   addedAt:        number;
   lastReminderAt: number;
   reminderCount:  number;
-  token:          string;   // Telegram bot token (stocké chiffré en KV)
+  token:          string;   // Telegram bot token (stocké en KV)
   chatId:         string;
 }
 
 const KV_KEY = "signal_monitors";
+
+// ─── Auth helper ──────────────────────────────────────────────────────────────
+function checkAdmin(req: NextRequest): Response | null {
+  const adminSecret = process.env.ADMIN_SECRET;
+  if (!adminSecret) return Response.json({ error: "ADMIN_SECRET non configuré" }, { status: 503 });
+  const auth = req.headers.get("authorization");
+  if (auth !== `Bearer ${adminSecret}`) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  return null;
+}
 
 // ─── KV helper ────────────────────────────────────────────────────────────────
 async function getKv() {
@@ -46,12 +55,14 @@ export async function GET() {
     const safe = monitors.map(({ token: _t, chatId: _c, ...m }) => m);
     return Response.json(safe);
   } catch (err) {
-    return Response.json({ error: String(err) }, { status: 500 });
+    return Response.json({ error: "Erreur interne" }, { status: 500 });
   }
 }
 
 // ─── POST : ajouter / remplacer un moniteur ───────────────────────────────────
 export async function POST(req: NextRequest) {
+  const denied = checkAdmin(req);
+  if (denied) return denied;
   const kv = await getKv();
   if (!kv) return Response.json({ error: "KV non configuré" }, { status: 503 });
 
@@ -97,6 +108,8 @@ export async function POST(req: NextRequest) {
 
 // ─── DELETE : supprimer un moniteur (ou tous) ─────────────────────────────────
 export async function DELETE(req: NextRequest) {
+  const denied = checkAdmin(req);
+  if (denied) return denied;
   const kv = await getKv();
   if (!kv) return Response.json({ error: "KV non configuré" }, { status: 503 });
 

@@ -2,7 +2,7 @@
 // Dashboard ELTE SMART — privé, local uniquement.
 // Calcule : position, sensibilité auto, TP/SL, score B/S, 11 timeframes EMA200.
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
 // ─── TYPES ───────────────────────────────────────────────────────────────────
 interface Candle { time: number; open: number; high: number; low: number; close: number; volume: number; }
@@ -245,11 +245,16 @@ function Row({ label, right }: { label: string; right: React.ReactNode }) {
 
 // ─── MAIN DASHBOARD ───────────────────────────────────────────────────────────
 export interface DashMetrics {
-  trend:      string;
-  volume:     string;
-  momentum:   string;
-  volatility: string;
-  barsSince:  number;
+  trend:         "Bullish" | "Bearish";
+  volume:        "Bullish" | "Bearish";
+  momentum:      "Bullish" | "Bearish";
+  volatility:    "Expanding 🚀" | "Trending 📈" | "Ranging";
+  barsSince:     number;
+  // Signal PRO enrichment
+  position:      "Buy" | "Sell";
+  sensitivity:   number;
+  trendStrength: number;
+  tfBulls:       (boolean | null)[];
 }
 interface Props {
   yfSymbol:   string;
@@ -263,6 +268,9 @@ export default function ElteSmartDashboard({ yfSymbol, tfLabel, yfInterval, yfRa
   const [dash,    setDash]    = useState<DashResult | null>(null);
   const [tfBulls, setTfBulls] = useState<(boolean | null)[]>(TF_DASH.map(() => null));
   const [loading, setLoading] = useState(true);
+  const dashRef = useRef<DashResult | null>(null);
+  const onMetricsRef = useRef(onMetrics);
+  useEffect(() => { onMetricsRef.current = onMetrics; }, [onMetrics]);
 
   // ── Fetch main data + compute dashboard ──────────────────────────────────
   useEffect(() => {
@@ -273,14 +281,19 @@ export default function ElteSmartDashboard({ yfSymbol, tfLabel, yfInterval, yfRa
       .then((d: Candle[]) => {
         const result = computeDash(d);
         setDash(result);
+        dashRef.current = result; // keep ref in sync
         setLoading(false);
         if (result && onMetrics) {
           onMetrics({
-            trend:      result.trend,
-            volume:     result.volume,
-            momentum:   result.momentum,
-            volatility: result.volatility,
-            barsSince:  result.barsSince,
+            trend:         result.trend,
+            volume:        result.volume,
+            momentum:      result.momentum,
+            volatility:    result.volatility,
+            barsSince:     result.barsSince,
+            position:      result.position,
+            sensitivity:   result.sensitivity,
+            trendStrength: result.trendStrength,
+            tfBulls:       TF_DASH.map(() => null), // will be updated by fetchMultiTF
           });
         }
       })
@@ -307,6 +320,21 @@ export default function ElteSmartDashboard({ yfSymbol, tfLabel, yfInterval, yfRa
             next[i] = ema200Bull(aggregated);
           }
         });
+        // Propagate updated tfBulls to Signal PRO
+        if (onMetricsRef.current && dashRef.current) {
+          const d = dashRef.current;
+          onMetricsRef.current({
+            trend:         d.trend,
+            volume:        d.volume,
+            momentum:      d.momentum,
+            volatility:    d.volatility,
+            barsSince:     d.barsSince,
+            position:      d.position,
+            sensitivity:   d.sensitivity,
+            trendStrength: d.trendStrength,
+            tfBulls:       next,
+          });
+        }
         return next;
       });
     };

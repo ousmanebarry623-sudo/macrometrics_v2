@@ -6,6 +6,7 @@ import { SIGNAL_TFS } from "@/components/SignalChart";
 import type { Signal, ElteParams } from "@/lib/elte-compute";
 import type { DashMetrics } from "@/components/ElteSmartDashboard";
 import type { TelegramSignalData, ServerWatchSymbol } from "@/components/TelegramPanel";
+import type { SignalProResult } from "@/lib/signal-pro";
 import SignalMonitorPanel from "@/components/SignalMonitorPanel";
 import LivePriceTicker from "@/components/LivePriceTicker";
 import { useBreakpoint } from "@/lib/use-breakpoint";
@@ -24,6 +25,7 @@ const ElteSmartDashboard = dynamic(() => import("@/components/ElteSmartDashboard
 });
 
 const TelegramPanel = dynamic(() => import("@/components/TelegramPanel"), { ssr: false });
+const SignalProPanel = dynamic(() => import("@/components/SignalProPanel"), { ssr: false });
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function fmtPrice(v: number, sym: string) {
@@ -38,6 +40,7 @@ export default function SignalPage() {
   const [tfIdx,     setTfIdx]     = useState(4);
   const [activeCat, setActiveCat] = useState("Majeurs");
   const [autoSend,  setAutoSend]  = useState(false);
+  const [proMetrics, setProMetrics] = useState<DashMetrics | null>(null);
 
   // Charger l'état autoSend depuis localStorage côté client
   useEffect(() => {
@@ -76,8 +79,9 @@ export default function SignalPage() {
 
   // Données pour Telegram (assemblées depuis SignalChart + Dashboard)
   const [tgSignal, setTgSignal] = useState<TelegramSignalData | null>(null);
-  const metricsRef = useRef<DashMetrics | null>(null);
-  const sigDataRef = useRef<{ sig: Signal; params: ElteParams } | null>(null);
+  const metricsRef  = useRef<DashMetrics | null>(null);
+  const sigDataRef  = useRef<{ sig: Signal; params: ElteParams } | null>(null);
+  const proResultRef = useRef<SignalProResult | null>(null);
 
   const { isMobile } = useBreakpoint();
   const sym = TV_SYMBOLS[symIdx];
@@ -111,6 +115,7 @@ export default function SignalPage() {
     const sensLabel = Number.isInteger(sig.sens)
       ? String(sig.sens)
       : sig.sens.toFixed(1).replace(/\.0$/, "");
+    const pro = proResultRef.current;
     setTgSignal({
       sigTime:    sig.time,
       symbol,
@@ -129,6 +134,11 @@ export default function SignalPage() {
       momentum:   metrics.momentum,
       volatility: metrics.volatility,
       barsSince:  metrics.barsSince,
+      confidence:  pro?.confidence,
+      confLevel:   pro?.confLevel,
+      horizon:     pro?.horizon,
+      divergences: pro?.divergences,
+      resume:      pro?.resume,
     });
   }, []);
 
@@ -153,8 +163,19 @@ export default function SignalPage() {
   // ── Callback depuis ElteSmartDashboard ────────────────────────────────────
   const handleMetrics = useCallback((m: DashMetrics) => {
     metricsRef.current = m;
+    setProMetrics(m);
     if (sigDataRef.current) {
       rebuildTgSignal(sigDataRef.current.sig, sigDataRef.current.params, m, sym.label, tf.label);
+    }
+  }, [sym.label, tf.label, rebuildTgSignal]);
+
+  // ── Callback depuis SignalProPanel ────────────────────────────────────────
+  const handleProResult = useCallback((r: SignalProResult) => {
+    proResultRef.current = r;
+    // Rebuild tgSignal with updated pro data if signal is active
+    if (sigDataRef.current && metricsRef.current) {
+      const { sig, params } = sigDataRef.current;
+      rebuildTgSignal(sig, params, metricsRef.current, sym.label, tf.label);
     }
   }, [sym.label, tf.label, rebuildTgSignal]);
 
@@ -252,7 +273,7 @@ export default function SignalPage() {
       {/* ── Paires de la catégorie active ───────────────────────────────── */}
       <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
         {visibleSymbols.map(({ label, tv, i }) => (
-          <button key={tv} onClick={() => { setSymIdx(i); sigDataRef.current = null; metricsRef.current = null; setTgSignal(null); }} style={{
+          <button key={tv} onClick={() => { setSymIdx(i); sigDataRef.current = null; metricsRef.current = null; setTgSignal(null); setProMetrics(null); }} style={{
             fontSize:11, fontWeight:600, padding:"4px 11px", borderRadius:7, cursor:"pointer",
             background: symIdx === i ? "rgba(212,175,55,.12)" : "#10101e",
             border:    `1px solid ${symIdx === i ? "rgba(212,175,55,.3)" : "#1c1c38"}`,
@@ -265,7 +286,7 @@ export default function SignalPage() {
       <div style={{ display:"flex", gap:3, alignItems:"center" }}>
         <span style={{ fontSize:11, color:"#334155", marginRight:6 }}>Unité de temps :</span>
         {SIGNAL_TFS.map((t, i) => (
-          <button key={t.label} onClick={() => { setTfIdx(i); sigDataRef.current = null; metricsRef.current = null; setTgSignal(null); }} style={{
+          <button key={t.label} onClick={() => { setTfIdx(i); sigDataRef.current = null; metricsRef.current = null; setTgSignal(null); setProMetrics(null); }} style={{
             fontSize:12, fontWeight:700, padding:"4px 11px", borderRadius:6, cursor:"pointer", minWidth:36,
             background: tfIdx === i ? "rgba(99,102,241,.15)" : "#10101e",
             border:    `1px solid ${tfIdx === i ? "rgba(99,102,241,.4)" : "#1c1c38"}`,
@@ -300,6 +321,15 @@ export default function SignalPage() {
         currentYf={sym.yf}
         currentLabel={sym.label}
         currentTfLabel={tf.label}
+      />
+
+      {/* ── Signal PRO ──────────────────────────────────────────────────── */}
+      <SignalProPanel
+        key={`pro-${sym.yf}-${tf.label}`}
+        pairLabel={sym.label}
+        tfLabel={tf.label}
+        metrics={proMetrics}
+        onProResult={handleProResult}
       />
 
       {/* ── Note ────────────────────────────────────────────────────────── */}

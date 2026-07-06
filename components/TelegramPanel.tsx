@@ -20,6 +20,12 @@ export interface TelegramSignalData {
   momentum:    string;
   volatility:  string;
   barsSince:   number;
+  // Signal PRO enrichment (optional)
+  confidence?:  number;
+  confLevel?:   "HIGH" | "MEDIUM" | "LOW";
+  horizon?:     string;
+  divergences?: string[];
+  resume?:      string;
 }
 
 export interface ServerWatchSymbol {
@@ -47,33 +53,47 @@ const MAX_BARS     = 15;   // n'envoie pas si le signal a plus de 15 bougies
 
 // ─── Constructeur de message côté client (miroir de buildMessage() API) ───────
 function buildClientMessage(d: TelegramSignalData): string {
-  const isBuy = d.type === "buy";
-  const emoji = isBuy ? "🟢" : "🔴";
-  const dir   = isBuy ? "BUY" : "SELL";
-  const arrow = isBuy ? "📈" : "📉";
-  const bs    = d.barsSince;
-  return [
-    `${emoji} SIGNAL ${dir} — ${d.score}`,
-    `💱 ${d.symbol} · ${d.tf}`,
-    `📊 Stratégie : ${d.strategy}  |  Sensibilité : ${d.sensitivity}`,
+  const isBuy     = d.type === "buy";
+  const dirEmoji  = isBuy ? "🟢" : "🔴";
+  const dir       = isBuy ? "BUY" : "SELL";
+  const trendIcon = isBuy ? "📈" : "📉";
+  const bs        = d.barsSince;
+
+  const confEmoji = d.confLevel === "HIGH" ? "🔥" : d.confLevel === "MEDIUM" ? "⚡" : "⚪";
+  const confText  = d.confLevel === "HIGH" ? "FORTE" : d.confLevel === "MEDIUM" ? "MODÉRÉE" : "FAIBLE";
+
+  const lines: string[] = [
+    `${dirEmoji} SIGNAL ${dir} — ${d.score}`,
+    `💱 ${d.symbol} · ${d.tf}  |  Stratégie : ${d.strategy}`,
+    d.confidence !== undefined ? `${confEmoji} Confiance : ${confText} (${d.confidence}%)` : "",
     ``,
-    `──────────────────`,
-    `📍 Entry : ${d.entry}`,
-    `🎯 TP 1  : ${d.tp1}`,
-    `🎯 TP 2  : ${d.tp2}`,
-    `🎯 TP 3  : ${d.tp3}`,
-    `🛑 Stop  : ${d.sl}`,
-    `──────────────────`,
-    `${arrow} Trend : ${d.trend}`,
-    `📦 Volume : ${d.volume}`,
-    `⚡ Momentum : ${d.momentum}`,
-    `🌡 Volatilité : ${d.volatility}`,
+    `━━━━━━━━━━━━━━━━━━`,
+    `📍 Entry  : ${d.entry}`,
+    `🎯 TP 1   : ${d.tp1}`,
+    `🎯 TP 2   : ${d.tp2}`,
+    `🎯 TP 3   : ${d.tp3}`,
+    `🛑 Stop   : ${d.sl}`,
+    `━━━━━━━━━━━━━━━━━━`,
+    `${trendIcon} Trend : ${d.trend}  |  Volume : ${d.volume}`,
+    `⚡ Momentum : ${d.momentum}  |  Volatilité : ${d.volatility}`,
+    d.horizon ? `⏳ Horizon : ${d.horizon}` : "",
     bs > 0
       ? `⏱ Signal il y a ${bs} bougie${bs > 1 ? "s" : ""}`
       : `⏱ Signal sur la bougie actuelle`,
-    ``,
-    `🔒 ELTE SMART · Privé · macrometrics`,
-  ].join("\n");
+  ];
+
+  if (d.divergences && d.divergences.length > 0) {
+    lines.push(``, `⚠️ Divergences :`);
+    d.divergences.slice(0, 3).forEach(dv => lines.push(`  • ${dv}`));
+  }
+
+  if (d.resume) {
+    lines.push(``, `📋 ${d.resume}`);
+  }
+
+  lines.push(``, `🔒 ELTE SMART · Privé · macrometrics`);
+
+  return lines.filter(l => l !== undefined).join("\n");
 }
 
 // ─── MODAL CONFIG TELEGRAM ───────────────────────────────────────────────────
