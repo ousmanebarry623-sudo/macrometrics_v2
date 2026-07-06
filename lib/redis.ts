@@ -6,6 +6,7 @@ import Redis from "ioredis";
 // ─── Singleton serverless ─────────────────────────────────────────────────────
 // Vercel garde les fonctions "warm" entre les requêtes — on réutilise la connexion.
 declare global {
+  // eslint-disable-next-line no-var
   var __redis: Redis | undefined;
 }
 
